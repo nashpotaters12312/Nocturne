@@ -3,6 +3,7 @@ import {mulberry32} from './noise.js';
 import {WORLD,HALF} from './data.js';
 import {B} from './world.js';
 import * as G from './geo.js';
+import {Q} from './quality.js';
 
 // species: body dims, colors, behaviour
 const SP={
@@ -89,7 +90,7 @@ export class Wildlife{
     const rng=this.rng,mk=(c,s)=>{const g=new THREE.Group();g.add(new THREE.Mesh(G.merge([G.box(0.4*s,0.25*s,0.9*s,c,{}),G.box(0.2*s,0.2*s,0.3*s,c,{z:0.55*s,y:0.05*s})]),this.mat));
       const wg=G.box(1.1*s,0.04,0.45*s,c,{x:0.55*s});const wg2=G.box(1.1*s,0.04,0.45*s,c,{x:-0.55*s});
       const L=new THREE.Group(),R=new THREE.Group();L.add(new THREE.Mesh(wg,this.mat));R.add(new THREE.Mesh(wg2,this.mat));L.position.x=0.15*s;R.position.x=-0.15*s;g.add(L,R);g.userData={L,R};return g;};
-    for(let f=0;f<8;f++){
+    for(let f=0;f<Q.birds;f++){
       const x=(rng()*2-1)*(HALF-150),z=(rng()*2-1)*(HALF-150),vulture=this.world.biomeAt(x,z)===B.DESERT,n=vulture?2+Math.floor(rng()*2):4+Math.floor(rng()*5);
       for(let i=0;i<n;i++){const g=mk(vulture?0x2a2420:[0x4a6a8a,0xb85a3a,0x3a3a3a,0xd0d0d8][f%4],vulture?2.2:1);g.visible=false;this.group.add(g);
         this.birds.push({g,cx:x,cz:z,r:25+rng()*30+(vulture?30:0),a:rng()*6.28,sp:(vulture?9:14)/(30),alt:vulture?55:28+rng()*14,ph:rng()*6,off:rng()*6.28});}
@@ -111,7 +112,7 @@ export class Wildlife{
     this.ff=new THREE.Points(g,new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:this.ffU,
       vertexShader:'attribute float ph;uniform float uTime;varying float vA;void main(){vec3 p=position;p.x+=sin(uTime*0.6+ph*3.)*2.;p.z+=cos(uTime*0.5+ph*5.)*2.;p.y+=sin(uTime*0.9+ph)*0.6;vec4 mv=modelViewMatrix*vec4(p,1.);vA=0.5+0.5*sin(uTime*2.+ph*9.);gl_PointSize=clamp(120./-mv.z,2.,9.);gl_Position=projectionMatrix*mv;}',
       fragmentShader:'varying float vA;uniform float uVis;void main(){float d=length(gl_PointCoord-.5);if(d>.5)discard;gl_FragColor=vec4(0.8,1.,0.35,(1.-d*2.)*vA*uVis);}'}));
-    this.ff.frustumCulled=false;this.ffBase=pos.slice();this.scene.add(this.ff);
+    this.ff.frustumCulled=false;this.ff.visible=Q.fireflies;this.ffBase=pos.slice();this.scene.add(this.ff);
   }
   // damage from player; returns {killed,meat}
   hit(a,dmg,from){
@@ -131,7 +132,7 @@ export class Wildlife{
     this.t+=dt;const w=this.world,pp=player.pos,night=1-this.sky.daylight;
     for(const a of this.animals){
       const dx=pp.x-a.x,dz=pp.z-a.z,dist=Math.hypot(dx,dz);
-      if(dist>260){a.g.visible=false;continue;}
+      if(dist>Q.animalR){a.g.visible=false;continue;}
       a.g.visible=true;
       if(a.dead){a.deadT+=dt;a.g.rotation.order='YXZ';a.g.rotation.y=a.yaw-Math.PI/2;a.g.rotation.x=Math.min(1.5,a.deadT*3);a.g.position.y=a.y-Math.min(0.2,a.deadT*0.3);if(a.deadT>25){a.g.position.y-=(a.deadT-25)*0.5;if(a.deadT>30)a.g.visible=false;}continue;}
       const sp=a.sp;a.timer-=dt;a.hurt=Math.max(0,a.hurt-dt);
@@ -173,14 +174,14 @@ export class Wildlife{
     }
     // birds
     for(const b of this.birds){
-      const d=Math.hypot(b.cx-pp.x,b.cz-pp.z);if(d>b.r+330){b.g.visible=false;continue;}b.g.visible=true;
+      const d=Math.hypot(b.cx-pp.x,b.cz-pp.z);if(d>b.r+Q.animalR+70){b.g.visible=false;continue;}b.g.visible=true;
       b.a+=b.sp*dt;const x=b.cx+Math.cos(b.a)*b.r,z=b.cz+Math.sin(b.a)*b.r,y=w.heightAt(x,z)+b.alt+Math.sin(time*0.5+b.ph)*3;
       b.g.position.set(x,Math.max(y,4),z);b.g.rotation.y=-b.a;b.g.rotation.z=-0.25;
       const fl=Math.sin(time*9+b.ph)*0.55*(Math.sin(time*0.7+b.ph)>0.4?0.15:1);b.g.userData.L.rotation.z=fl;b.g.userData.R.rotation.z=-fl;
     }
     // fish
     for(const f of this.fish){
-      const d=Math.hypot(f.x-pp.x,f.z-pp.z);if(d>140){f.m.visible=false;continue;}f.m.visible=true;
+      const d=Math.hypot(f.x-pp.x,f.z-pp.z);if(d>Q.animalR*0.55){f.m.visible=false;continue;}f.m.visible=true;
       f.t-=dt;if(f.t<0){f.t=2+Math.random()*4;f.tx=f.x+(Math.random()-.5)*24;f.tz=f.z+(Math.random()-.5)*24;if(w.heightAt(f.tx,f.tz)>-1.4){f.tx=f.x;f.tz=f.z;}if(Math.random()<0.08&&f.jump<=0)f.jump=1;}
       const want=Math.atan2(f.tz-f.z,f.tx-f.x);let df=want-f.yaw;while(df>Math.PI)df-=6.283;while(df<-Math.PI)df+=6.283;f.yaw+=df*Math.min(1,dt*2);
       f.x+=Math.cos(f.yaw)*f.sp*dt;f.z+=Math.sin(f.yaw)*f.sp*dt;if(w.heightAt(f.x,f.z)>-1.2){f.yaw+=3;f.x-=Math.cos(f.yaw)*0.2;}

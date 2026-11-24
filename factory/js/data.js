@@ -7,6 +7,10 @@ export const ITEMS={
   limestone:{name:'Limestone',color:0xefe9d2,shape:O},coal:{name:'Coal',color:0x2b2b2e,shape:O},
   caterium_ore:{name:'Caterium Ore',color:0xffd23f,shape:O},sulfur:{name:'Sulfur',color:0xd4f03a,shape:O},
   quartz:{name:'Raw Quartz',color:0xf2a6ff,shape:O},bauxite:{name:'Bauxite',color:0xd9533a,shape:O},uranium:{name:'Uranium',color:0x4dff5a,shape:O},
+  tin_ore:{name:'Tin Ore',color:0x4fd6c0,shape:O},titanium_ore:{name:'Titanium Ore',color:0x5b8cff,shape:O},ruby_ore:{name:'Ruby Ore',color:0xe0245e,shape:O},
+  tin_ingot:{name:'Tin Ingot',color:0x8fe3d6,shape:I},bronze_ingot:{name:'Bronze Ingot',color:0xb8803a,shape:I},titanium_ingot:{name:'Titanium Ingot',color:0x8fb0ff,shape:I},
+  bronze_plate:{name:'Bronze Plate',color:0xc9893f,shape:P},titanium_plate:{name:'Titanium Plate',color:0xa8c0ff,shape:P},cut_ruby:{name:'Cut Ruby',color:0xff3d7a,shape:[.4,.4,.4]},
+  power_core:{name:'Power Core',color:0xff5aa0,shape:[.6,.6,.6]},titanium_frame:{name:'Titanium Frame',color:0x7f9cf0,shape:[.8,.8,.8]},
   iron_ingot:{name:'Iron Ingot',color:0xb8bfc7,shape:I},copper_ingot:{name:'Copper Ingot',color:0xd98a52,shape:I},
   caterium_ingot:{name:'Caterium Ingot',color:0xf3c33b,shape:I},aluminum_ingot:{name:'Aluminum Ingot',color:0xdfe6ea,shape:I},
   steel_ingot:{name:'Steel Ingot',color:0x596a78,shape:I},glass:{name:'Glass',color:0xbfe9f5,shape:P},
@@ -24,6 +28,7 @@ export const RESOURCES={
   iron_ore:{name:'Iron',color:0x8fa3b5},copper_ore:{name:'Copper',color:0xe07b39},limestone:{name:'Limestone',color:0xefe9d2},
   coal:{name:'Coal',color:0x3a3a40},caterium_ore:{name:'Caterium',color:0xffd23f},sulfur:{name:'Sulfur',color:0xd4f03a},
   quartz:{name:'Quartz',color:0xf2a6ff},bauxite:{name:'Bauxite',color:0xd9533a},uranium:{name:'Uranium',color:0x4dff5a},
+  tin_ore:{name:'Tin',color:0x4fd6c0},titanium_ore:{name:'Titanium',color:0x5b8cff},ruby_ore:{name:'Ruby',color:0xe0245e},
 };
 export const PURITY=[{name:'Impure',mult:0.5},{name:'Normal',mult:1},{name:'Pure',mult:2}];
 
@@ -34,6 +39,14 @@ export const RECIPES=[
   r('caterium_ingot','smelter','Caterium Ingot',{caterium_ore:2},{caterium_ingot:1},3),
   r('aluminum_ingot','smelter','Aluminum Ingot',{bauxite:2},{aluminum_ingot:1},3),
   r('glass','smelter','Glass',{quartz:1},{glass:1},2),
+  r('tin_ingot','smelter','Tin Ingot',{tin_ore:1},{tin_ingot:1},2),
+  r('titanium_ingot','smelter','Titanium Ingot',{titanium_ore:2},{titanium_ingot:1},4),
+  r('bronze_plate','constructor','Bronze Plate',{bronze_ingot:2},{bronze_plate:1},3),
+  r('titanium_plate','constructor','Titanium Plate',{titanium_ingot:2},{titanium_plate:1},4),
+  r('cut_ruby','constructor','Cut Ruby',{ruby_ore:2},{cut_ruby:1},4),
+  r('power_core','assembler','Power Core',{cut_ruby:2,bronze_plate:2},{power_core:1},10),
+  r('titanium_frame','assembler','Titanium Frame',{titanium_plate:4,steel_beam:2},{titanium_frame:1},12),
+  r('bronze_ingot','foundry','Bronze Ingot',{copper_ingot:1,tin_ingot:1},{bronze_ingot:2},4),
   r('iron_plate','constructor','Iron Plate',{iron_ingot:3},{iron_plate:2},4),
   r('iron_rod','constructor','Iron Rod',{iron_ingot:1},{iron_rod:1},3),
   r('screw','constructor','Screw',{iron_rod:1},{screw:4},3),
@@ -75,8 +88,23 @@ export const MILESTONES=[
   {id:'m1',name:'Spark of Industry',req:{iron_plate:30,wire:20},unlock:['splitter','coal_gen'],text:'Unlocks Splitter and Coal Generator.'},
   {id:'m2',name:'Foundations',req:{concrete:40,iron_rod:30,screw:60},unlock:['assembler'],text:'Unlocks Assembler.'},
   {id:'m3',name:'Steel Age',req:{reinforced_plate:8,cable:20},unlock:['foundry'],text:'Unlocks Foundry.'},
-  {id:'m4',name:'Rapid Boots',req:{steel_beam:20,circuit_board:10},unlock:['boots'],text:'+35% run speed and wider scanner.'},
+  {id:'m4',name:'Advanced Alloys',req:{steel_beam:20,circuit_board:10,bronze_plate:15},unlock:['tier3'],text:'Unlocks level 3 of most upgrades.'},
   {id:'m5',name:'Atomic Dawn',req:{computer:5,battery:10,modular_frame:5},unlock:['nuclear'],text:'Unlocks Nuclear Reactor.'},
-  {id:'m6',name:'The Ironvale Beacon',req:{computer:20,fuel_rod:5,modular_frame:20,battery:20},unlock:['beacon'],text:'Light the beacon. Final milestone.'},
+  {id:'m6',name:'The Ironvale Beacon',req:{computer:15,fuel_rod:5,titanium_frame:10,power_core:10,battery:15},unlock:['beacon'],text:'Light the beacon. Final milestone.'},
 ];
 export const START_INV={iron_plate:120,iron_rod:60,screw:100,wire:80,cable:20,concrete:60};
+
+// Upgrades: each level has a cost and the number of milestones that must be done first.
+const L=(cost,tier=0)=>({cost,tier});
+export const UPGRADES=[
+  {id:'boots',name:'Running Boots',desc:'+15% walk and sprint speed per level.',lv:[L({iron_plate:30,iron_rod:20}),L({bronze_plate:15,screw:60},1),L({titanium_plate:20,circuit_board:5},4)]},
+  {id:'jump',name:'Jump Springs',desc:'+15% jump height per level.',lv:[L({iron_rod:20,wire:20}),L({rotor:4,bronze_plate:10},2)]},
+  {id:'vital',name:'Vitality',desc:'+25 max health per level.',lv:[L({concrete:20,iron_plate:20}),L({reinforced_plate:4},2),L({battery:5,titanium_plate:5},4)]},
+  {id:'pick',name:'Prospector Pickaxe',desc:'Faster hand mining and +10 melee damage per level.',lv:[L({iron_plate:20,iron_rod:10}),L({steel_beam:8},3),L({titanium_plate:10,cut_ruby:3},4)]},
+  {id:'scan',name:'Scanner Range',desc:'+40% scanner radius per level.',lv:[L({wire:30,glass:5},1),L({circuit_board:6,cut_ruby:2},4)]},
+  {id:'belt',name:'Belt Speed',desc:'Belts move x1.5 (Mk2) then x2 (Mk3): 180 / 240 items per min.',lv:[L({iron_plate:80,iron_rod:20},2),L({steel_beam:20,reinforced_plate:6},4)]},
+  {id:'miner',name:'Miner Overclock',desc:'+25% miner output per level.',lv:[L({iron_plate:30,concrete:10},1),L({bronze_plate:20,rotor:4},3),L({titanium_plate:20,power_core:2},4)]},
+  {id:'mach',name:'Machine Overclock',desc:'+20% smelter/constructor/assembler/foundry speed per level.',lv:[L({cable:20,iron_plate:20},2),L({circuit_board:8},3),L({computer:2,power_core:2},4)]},
+  {id:'eff',name:'Efficiency Core',desc:'-20% power use of all machines per level.',lv:[L({wire:40,bronze_plate:10},3),L({power_core:4,battery:6},5)]},
+  {id:'solar',name:'Solar Efficiency',desc:'+40% solar output per level.',lv:[L({glass:10,wire:30},2),L({power_core:3,titanium_plate:10},4)]},
+];

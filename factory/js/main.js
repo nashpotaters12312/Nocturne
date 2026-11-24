@@ -8,23 +8,24 @@ import {Factory,recipesFor,RMAP} from './factory.js';
 import {Player} from './player.js';
 import {UI} from './ui.js';
 import {sfx} from './audio.js';
-import {WORLD,HALF,CELL,SEG,ITEMS,RECIPES,BUILDINGS,START_UNLOCKED,START_INV,MILESTONES,RESOURCES,PURITY} from './data.js';
+import {Q,level as QLEVEL,setting as QSET} from './quality.js';
+import {WORLD,HALF,CELL,SEG,ITEMS,RECIPES,BUILDINGS,START_UNLOCKED,START_INV,MILESTONES,RESOURCES,PURITY,UPGRADES} from './data.js';
 
 const $=id=>document.getElementById(id);
 const SAVE='ironvale-save-v1';
 class Inventory{constructor(){this.c={};}get(k){return this.c[k]||0;}add(k,n=1){this.c[k]=(this.c[k]||0)+n;}has(k,n=1){return this.get(k)>=n;}remove(k,n=1){this.c[k]=Math.max(0,this.get(k)-n);}
   canAfford(cost){return Object.entries(cost).every(([k,n])=>this.has(k,n));}pay(cost){for(const k in cost)this.remove(k,cost[k]);}}
 
-const game={inv:new Inventory(),stats:{mined:0,supply:0,demand:0,kills:0},unlocked:new Set(START_UNLOCKED),done:[],delivered:{},sunk:0,beacon:false,time:0,scanned:false};
+const game={inv:new Inventory(),stats:{mined:0,supply:0,demand:0,kills:0},unlocked:new Set(START_UNLOCKED),upg:{},done:[],delivered:{},sunk:0,beacon:false,time:0,scanned:false};
 window.ironvale=game;
 const setLoad=(p,t)=>{$('loadfill').style.width=(p*100)+'%';$('loadtxt').textContent=t;};
 const yieldUI=()=>new Promise(r=>setTimeout(r,16));
 
 async function init(){
-  const renderer=new THREE.WebGLRenderer({canvas:$('gl'),antialias:true,powerPreference:'high-performance'});
-  renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));renderer.setSize(innerWidth,innerHeight);
-  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-  const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,0.1,3500);
+  const renderer=new THREE.WebGLRenderer({canvas:$('gl'),antialias:Q.aa,powerPreference:'high-performance',stencil:false});
+  let pr=Math.min(devicePixelRatio,Q.pr);renderer.setPixelRatio(pr);renderer.setSize(innerWidth,innerHeight);
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;renderer.shadowMap.enabled=Q.shadows;renderer.shadowMap.type=Q.shadowMap>1024?THREE.PCFSoftShadowMap:THREE.PCFShadowMap;
+  const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,0.1,Q.far);
   addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();});
   setLoad(0.02,'Shaping the terrain…');await yieldUI();
   const world=new World(1337);await world.generate(p=>setLoad(0.02+p*0.35,'Shaping the terrain…'));
@@ -52,11 +53,22 @@ async function init(){
     if(m){const need=m.req[type];if(!need||(game.delivered[type]||0)>=need)return false;game.delivered[type]=(game.delivered[type]||0)+1;game.checkMilestone();return true;}
     game.sunk++;return true;
   };
+  game.applyUpgrades=()=>{
+    const l=id=>game.upg[id]||0;
+    player.speedMul=1+0.15*l('boots');player.jumpMul=1+0.15*l('jump');
+    const mh=100+25*l('vital');if(mh!==player.maxHp){player.hp+=mh-player.maxHp;player.maxHp=mh;}
+    const m=factory.mods;m.belt=[1,1.5,2][l('belt')];m.miner=1+0.25*l('miner');m.mach=1+0.2*l('mach');m.power=Math.max(0.3,1-0.2*l('eff'))*(1+0.08*l('mach'));m.solar=1+0.4*l('solar');
+  };
+  game.buyUpgrade=id=>{
+    const u=UPGRADES.find(u=>u.id===id),lv=game.upg[id]||0,nx=u&&u.lv[lv];
+    if(!nx||game.done.length<nx.tier||!game.inv.canAfford(nx.cost)){sfx.bad();return false;}
+    game.inv.pay(nx.cost);game.upg[id]=lv+1;game.applyUpgrades();sfx.unlock();game.notify(`${u.name} upgraded to level ${lv+1}`,'good');return true;
+  };
   game.checkMilestone=()=>{
     const m=game.curMilestone();if(!m)return;
     if(Object.entries(m.req).every(([k,n])=>(game.delivered[k]||0)>=n)){
       game.done.push(m.id);game.delivered={};
-      for(const u of m.unlock){game.unlocked.add(u);if(u==='boots')player.speedMul=1.35;if(u==='beacon'){game.beacon=true;}}
+      for(const u of m.unlock){game.unlocked.add(u);if(u==='tier3')game.notify('Level 3 upgrades are now available (U)');if(u==='beacon'){game.beacon=true;}}
       game.notify(`Milestone complete: ${m.name}`,'good');game.notify(m.text,'good');sfx.unlock();if(game.curMilestone())game.notify('Next: '+game.curMilestone().name);
       ui.refreshMilestones&&ui.refreshMilestones();
     }
@@ -67,7 +79,7 @@ async function init(){
   game.deposit=(item,n)=>{const m=game.curMilestone();if(!m)return;const need=(m.req[item]||0)-(game.delivered[item]||0);const q=Math.min(n,need,game.inv.get(item));if(q>0){game.inv.remove(item,q);game.delivered[item]=(game.delivered[item]||0)+q;game.checkMilestone();sfx.ui();}};
   game.save=()=>{
     try{localStorage.setItem(SAVE,JSON.stringify({v:1,inv:game.inv.c,unlocked:[...game.unlocked],done:game.done,delivered:game.delivered,sunk:game.sunk,time:sky.time,
-      pos:[player.pos.x,player.pos.y,player.pos.z],yaw:player.yaw,hp:player.hp,disc:nodes.filter(n=>n.discovered).map(n=>n.id),buildings:factory.serialize(),stats:game.stats}));return true;}catch(e){console.warn(e);return false;}
+      upg:game.upg,pos:[player.pos.x,player.pos.y,player.pos.z],yaw:player.yaw,hp:player.hp,disc:nodes.filter(n=>n.discovered).map(n=>n.id),buildings:factory.serialize(),stats:game.stats}));return true;}catch(e){console.warn(e);return false;}
   };
   game.hasSave=()=>!!localStorage.getItem(SAVE);
   game.loadSave=()=>{
@@ -75,7 +87,7 @@ async function init(){
       game.inv.c=s.inv;game.unlocked=new Set(s.unlocked);game.done=s.done;game.delivered=s.delivered||{};game.sunk=s.sunk||0;sky.time=s.time;
       player.pos.set(...s.pos);player.yaw=s.yaw;player.hp=s.hp||100;Object.assign(game.stats,s.stats||{});
       for(const id of s.disc||[])nodes[id]&&(nodes[id].discovered=true);
-      factory.load(s.buildings||[]);if(game.unlocked.has('boots'))player.speedMul=1.35;
+      factory.load(s.buildings||[]);game.upg=s.upg||{};game.applyUpgrades();
       return true;}catch(e){console.warn(e);return false;}
   };
   setLoad(1,'Ready');
@@ -89,12 +101,14 @@ async function init(){
   $('btnQuit').onclick=()=>{localStorage.removeItem(SAVE);location.reload();};
   setInterval(()=>{if(game.running)game.save();},30000);addEventListener('beforeunload',()=>{if(game.running)game.save();});
   game.start=start;
+  for(const id of ['qsel','qsel2']){const el=$(id);if(!el)continue;el.value=QSET;el.onchange=()=>{try{localStorage.setItem('ironvale-q',el.value);}catch(e){}if(game.running)game.save();location.reload();};}
+  const qi=document.getElementById('qinfo');if(qi)qi.textContent=`Graphics: ${QLEVEL.toUpperCase()}`+(QSET==='auto'?' (auto)':'');
 
   // ---- main loop
-  const clock=new THREE.Clock();let frames=0,fps=60,fpsT=0;
+  let last=performance.now(),ema=16,adT=0;
   function loop(){
     requestAnimationFrame(loop);
-    const dt=Math.min(clock.getDelta(),0.05);game.time+=dt;
+    const now=performance.now(),raw=Math.min(now-last,250);last=now;ema+=(raw-ema)*0.05;const dt=Math.min(raw/1000,0.05);game.time+=dt;
     if(game.running){
       const active=ui.active();
       player.update(dt,active);
@@ -106,7 +120,9 @@ async function init(){
     water.update(game.time,camera.position,sky);
     nodes.forEach(n=>{if(n.discovered&&n.beam)n.beam.visible=true;});
     renderer.render(scene,camera);
-    fpsT+=dt;frames++;if(fpsT>1){fps=frames/fpsT;frames=0;fpsT=0;game.fps=fps;}
+    game.fps=1000/ema;game.res=pr;adT+=raw;
+    if(adT>1500){adT=0;let np=pr;if(ema>26)np=Math.max(Q.minPr,pr-0.15);else if(ema<17&&pr<Math.min(devicePixelRatio,Q.pr))np=Math.min(Math.min(devicePixelRatio,Q.pr),pr+0.1);
+      if(Math.abs(np-pr)>0.01){pr=np;renderer.setPixelRatio(pr);renderer.setSize(innerWidth,innerHeight);}}
   }
   loop();
 }

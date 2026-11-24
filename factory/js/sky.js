@@ -1,19 +1,20 @@
 import * as THREE from 'three';
 import {smooth,lerp,mulberry32} from './noise.js';
+import {Q} from './quality.js';
 
 export const DAY_LEN=540;
 export class Sky{
   constructor(scene,renderer){
     this.scene=scene;this.time=0.33; // 0..1 (0.25 sunrise, 0.5 noon, 0.75 sunset)
     this.sunDir=new THREE.Vector3();
-    this.sun=new THREE.DirectionalLight(0xfff2dd,3);this.sun.castShadow=true;
-    this.sun.shadow.mapSize.set(2048,2048);const sc=this.sun.shadow.camera;sc.left=sc.bottom=-90;sc.right=sc.top=90;sc.near=1;sc.far=500;this.sun.shadow.bias=-0.0006;this.sun.shadow.normalBias=0.4;
+    this.sun=new THREE.DirectionalLight(0xfff2dd,3);this.sun.castShadow=Q.shadows;
+    const sm=Q.shadowMap||512,sr=sm>1024?90:65;this.sun.shadow.mapSize.set(sm,sm);const sc=this.sun.shadow.camera;sc.left=sc.bottom=-sr;sc.right=sc.top=sr;sc.near=1;sc.far=500;this.sun.shadow.bias=-0.0006;this.sun.shadow.normalBias=0.4;
     scene.add(this.sun,this.sun.target);
     this.hemi=new THREE.HemisphereLight(0x9ec8ff,0x4a4030,0.8);scene.add(this.hemi);
     this.fog=new THREE.FogExp2(0xb8d4ee,0.0032);scene.fog=this.fog;
     const uni={uSun:{value:this.sunDir},uZen:{value:new THREE.Color()},uHor:{value:new THREE.Color()},uNight:{value:0},uSunCol:{value:new THREE.Color()}};
     this.uni=uni;
-    this.dome=new THREE.Mesh(new THREE.SphereGeometry(3000,32,16),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,uniforms:uni,
+    this.dome=new THREE.Mesh(new THREE.SphereGeometry(Math.min(3000,Q.far*0.85),24,12),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,uniforms:uni,
       vertexShader:'varying vec3 vP;void main(){vP=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
       fragmentShader:`varying vec3 vP;uniform vec3 uSun,uZen,uHor,uSunCol;uniform float uNight;
       void main(){vec3 d=normalize(vP);float h=clamp(d.y,-0.2,1.);
@@ -31,9 +32,9 @@ export class Sky{
     this.stars=new THREE.Points(sg,new THREE.PointsMaterial({color:0xffffff,size:6,sizeAttenuation:false,transparent:true,opacity:0,fog:false,depthWrite:false}));this.stars.size=1.5;this.scene.add(this.stars);
     // clouds
     this.clouds=new THREE.Group();const cm=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.85,fog:false,depthWrite:false});this.cloudMat=cm;
-    for(let i=0;i<46;i++){
+    for(let i=0;i<Q.clouds;i++){
       const g=new THREE.Group(),n=4+Math.floor(rng()*5);
-      for(let k=0;k<n;k++){const s=new THREE.Mesh(new THREE.IcosahedronGeometry(30+rng()*40,1),cm);s.position.set((k-n/2)*45+rng()*20,rng()*10,rng()*40);s.scale.y=0.35;g.add(s);}
+      for(let k=0;k<n;k++){const s=new THREE.Mesh(new THREE.IcosahedronGeometry(30+rng()*40,Q.clouds>30?1:0),cm);s.position.set((k-n/2)*45+rng()*20,rng()*10,rng()*40);s.scale.y=0.35;g.add(s);}
       const a=rng()*6.283,d=300+rng()*1700;g.position.set(Math.cos(a)*d,260+rng()*140,Math.sin(a)*d);g.rotation.y=rng()*6;this.clouds.add(g);
     }
     scene.add(this.clouds);
@@ -50,7 +51,7 @@ export class Sky{
     const hor=new THREE.Color(0x070a16).lerp(new THREE.Color(0xa6cdef),day).lerp(new THREE.Color(0xff8a4a),glow*0.75);
     this.uni.uZen.value.copy(zen);this.uni.uHor.value.copy(hor);this.uni.uNight.value=1-day;
     this.uni.uSunCol.value.set(1,0.75,0.45).multiplyScalar(smooth(-0.1,0.1,this.sunDir.y));
-    this.fog.color.copy(hor).lerp(new THREE.Color(0x889ab0),0.1);this.fog.density=lerp(0.0045,0.0031,day);
+    this.fog.color.copy(hor).lerp(new THREE.Color(0x889ab0),0.1);this.fog.density=lerp(0.0045,0.0031,day)*Q.fogMul;
     const up=this.sunDir.y>0?1:0,moon=!up;
     const L=moon?new THREE.Vector3(-this.sunDir.x,-this.sunDir.y,-this.sunDir.z):this.sunDir;
     this.sun.position.copy(playerPos).addScaledVector(L,250);this.sun.target.position.copy(playerPos);

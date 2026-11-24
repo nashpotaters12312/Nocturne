@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {B,BIOME_NAMES} from './world.js';
-import {ITEMS,RECIPES,BUILDINGS,MILESTONES,RESOURCES,PURITY,CELL,HALF,SEG} from './data.js';
+import {ITEMS,RECIPES,BUILDINGS,MILESTONES,RESOURCES,PURITY,CELL,HALF,SEG,UPGRADES} from './data.js';
+import {level as QLEVEL,Q} from './quality.js';
 import {nodeLabel} from './nodes.js';
 import {recipesFor,RMAP} from './factory.js';
 import {sfx} from './audio.js';
@@ -56,7 +57,7 @@ export class UI{
     const g=this.game;
     if(code==='Escape'){if(this.panel){this.closePanel();}else if(this.mode!=='hand'){this.setMode('hand');}return;}
     if(this.pauseShown)return;
-    const panelKeys={KeyQ:'build',Tab:'inv',KeyI:'inv',KeyJ:'mile',KeyM:'map',KeyH:'help'};
+    const panelKeys={KeyQ:'build',Tab:'inv',KeyI:'inv',KeyJ:'mile',KeyU:'upg',KeyM:'map',KeyH:'help'};
     if(panelKeys[code]){if(this.panel===panelKeys[code])this.closePanel();else this.openPanel(panelKeys[code]);return;}
     if(this.panel)return;
     if(code==='KeyR'){this.rot=(this.rot+1)%4;}
@@ -65,7 +66,7 @@ export class UI{
     else if(code==='KeyF')this.eat();
     else if(code==='KeyE'&&this.mode==='hand')this.interact();
     else if(code==='KeyN'&&e&&e.shiftKey){this.player.fly=!this.player.fly;this.notify(this.player.fly?'Fly mode on':'Fly mode off');}
-    else if(code==='KeyO'){const r=this.sky.sun.castShadow=!this.sky.sun.castShadow;this.notify('Shadows '+(r?'on':'off'));}
+    else if(code==='KeyO'){if(!Q.shadows){this.notify('Shadows are off in Low graphics (change in Pause menu)');return;}const r=this.sky.sun.castShadow=!this.sky.sun.castShadow;this.notify('Shadows '+(r?'on':'off'));}
     else if(code==='KeyG'&&this.mode==='hand'){const b=this.target&&this.target.b;if(b&&this.game.unlocked.has(b.type)){this.type=b.type;this.rot=b.rot;this.setMode('build');}}
   }
   setMode(m,t){this.mode=m;if(t)this.type=t;this.factory.hideGhost();this.lastBelt=null;$('cross').classList.toggle('build',m!=='hand');}
@@ -90,11 +91,11 @@ export class UI{
   swing(){
     if(this.swingCd>0)return;this.swingCd=0.5;this.player.swing=1;sfx.swing();
     const a=this.wild.nearestInFront(this.player.pos,{x:this.player.forward().x,z:this.player.forward().z},3.8);
-    if(a){const r=this.wild.hit(a,26,this.player.pos);sfx.hit();
+    if(a){const r=this.wild.hit(a,26+10*this.lv('pick'),this.player.pos);sfx.hit();
       if(r&&r.killed){this.game.stats.kills++;if(r.meat>0){this.game.inv.add('meat',r.meat);this.game.notify(`Killed ${r.name}: +${r.meat} Raw Meat`,'good');}else this.game.notify('Killed '+r.name);}}
   }
   eat(){
-    const g=this.game;if(!g.inv.has('meat')||this.player.hp>=100)return;g.inv.remove('meat');this.player.hp=Math.min(100,this.player.hp+35);sfx.eat();this.notify('Ate raw meat (+35 HP)');
+    const g=this.game;if(!g.inv.has('meat')||this.player.hp>=this.player.maxHp)return;g.inv.remove('meat');this.player.hp=Math.min(this.player.maxHp,this.player.hp+35);sfx.eat();this.notify('Ate raw meat (+35 HP)');
   }
   interact(){
     const t=this.target;if(!t)return;
@@ -102,7 +103,7 @@ export class UI{
   }
   scan(){
     if(this.scanCd>this.game.time)return;this.scanCd=this.game.time+6;sfx.scan();this.scanR=0;
-    const R=this.game.unlocked.has('boots')?650:420;this.scanMax=R;
+    const R=420*(1+0.4*this.lv('scan'));this.scanMax=R;
     this.scanMesh.visible=true;if(!this.scanMesh.parent)this.scene.add(this.scanMesh);this.scanMesh.position.copy(this.player.pos);
     let found=0;const types={};
     for(const n of this.nodes){if(Math.hypot(n.x-this.player.pos.x,n.z-this.player.pos.z)<R&&!n.discovered){n.discovered=true;found++;types[n.type]=1;}}
@@ -151,7 +152,7 @@ export class UI{
     // hand mining
     let mining=false;
     if(this.mode==='hand'&&this.active()&&this.keys['KeyE']&&this.target&&this.target.node&&!p.dead){
-      mining=true;this.mineT+=dt;if(this.mineT>0.55){this.mineT=0;const n=this.target.node;g.inv.add(n.type,1);sfx.mine();g.stats.handMined=(g.stats.handMined||0)+1;}
+      mining=true;this.mineT+=dt;if(this.mineT>0.55*(1-0.18*this.lv('pick'))){this.mineT=0;const n=this.target.node;g.inv.add(n.type,1);sfx.mine();g.stats.handMined=(g.stats.handMined||0)+1;}
     }else this.mineT=0;
     p.mining=mining?1:0;
     if(this.scanMesh.visible){this.scanR+=dt*this.scanMax*0.9;this.scanMesh.scale.setScalar(Math.max(1,this.scanR));this.scanMesh.material.opacity=0.2*(1-this.scanR/this.scanMax);this.scanMesh.position.copy(p.pos);if(this.scanR>this.scanMax)this.scanMesh.visible=false;}
@@ -179,7 +180,7 @@ export class UI{
   hud(dt){
     const p=this.player,g=this.game;
     $('prompt').innerHTML=this.mode==='build'&&this.ghostMsg?`<span style="color:var(--bad)">${this.ghostMsg}</span>`:this.prompt;
-    const hp=Math.ceil(p.hp);$('hpbar').style.width=hp+'%';$('hptxt').textContent=`${hp} HP`;
+    const hp=Math.ceil(p.hp);$('hpbar').style.width=(hp/p.maxHp*100)+'%';$('hptxt').textContent=`${hp} HP`;
     $('food').innerHTML=`Raw Meat: ${g.inv.get('meat')} (<b style="color:var(--acc)">F</b> eat) · Kills: ${g.stats.kills}`;
     $('hitflash').style.boxShadow=`inset 0 0 160px 40px rgba(255,0,0,${p.hitFlash*1.4})`;$('death').classList.toggle('hidden',!p.dead);
     const s=g.stats,pc=s.demand>0?Math.min(1,s.supply/s.demand):1;
@@ -219,7 +220,7 @@ export class UI{
   refreshMilestones(){if(this.panel==='mile')this.refreshPanel();}
   refreshPanel(first){
     const body=$('pbody'),g=this.game,P=this.panel;let h='';
-    if(P==='build')h=this.buildHTML();else if(P==='inv')h=this.invHTML();else if(P==='machine')h=this.machineHTML();else if(P==='mile')h=this.mileHTML();else if(P==='map')h=this.mapHTML();else if(P==='help')h=this.helpHTML();
+    if(P==='upg')h=this.upgHTML();else if(P==='build')h=this.buildHTML();else if(P==='inv')h=this.invHTML();else if(P==='machine')h=this.machineHTML();else if(P==='mile')h=this.mileHTML();else if(P==='map')h=this.mapHTML();else if(P==='help')h=this.helpHTML();
     const sc=body.parentElement.scrollTop;body.innerHTML=h;body.parentElement.scrollTop=sc;this.wire(body);if(P==='map')this.drawMap();
   }
   wire(body){
@@ -233,6 +234,7 @@ export class UI{
     else if(a==='craft')g.craft(v,+v2||1);
     else if(a==='take'){const b=this.pextra;const n=b.store[v]||0;if(n>0){g.inv.add(v,n);b.store[v]=0;sfx.ui();}}
     else if(a==='takeall'){const b=this.pextra;for(const k in b.store){if(b.store[k]>0)g.inv.add(k,b.store[k]);b.store[k]=0;}sfx.ui();}
+    else if(a==='upg'){g.buyUpgrade(v);}
     else if(a==='dep')g.deposit(v,+v2||1);
     else if(a==='depall'){const m=g.curMilestone();if(m)for(const k in m.req)g.deposit(k,999);}
     this.refreshPanel();
@@ -268,6 +270,17 @@ export class UI{
     else if(b.type==='solar')h+=`<div>Output scales with sunlight (currently ${(this.sky.daylight*100).toFixed(0)}%).</div>`;
     return h;
   }
+  lv(id){return this.game.upg[id]||0;}
+  upgHTML(){
+    const g=this.game,done=g.done.length;
+    let h=`<h3 style="font-size:20px">Upgrades</h3><div class="small">Pay materials from your inventory. Higher levels need more milestones completed (${done}/${MILESTONES.length} done).</div><br><div class="grid">`;
+    for(const u of UPGRADES){
+      const l=this.lv(u.id),next=u.lv[l],max=l>=u.lv.length,gate=next&&done<next.tier,can=next&&!gate&&g.inv.canAfford(next.cost);
+      h+=`<div class="item ${max?'':can?'':'nocost'}" style="cursor:default"><h4>${u.name} <span class="small">Lv ${l}/${u.lv.length}</span></h4><p>${u.desc}</p><div class="prog"><i style="width:${l/u.lv.length*100}%;background:var(--acc)"></i></div>`+
+        (max?'<div class="small" style="color:var(--good)">Maxed</div>':`${this.cost(next.cost)}${gate?`<div class="small" style="color:var(--bad)">Requires ${next.tier} milestones</div>`:''}<div style="margin-top:6px"><button class="pri" data-act="upg|${u.id}" ${can?'':'disabled'}>Upgrade to Lv ${l+1}</button></div>`)+'</div>';
+    }
+    return h+'</div>';
+  }
   mileHTML(){
     const g=this.game;let h=`<h3 style="font-size:20px">Milestones</h3><div class="small">Items delivered to a Delivery Depot (by belt) or handed in below count toward the current milestone.</div><br>`;
     for(const m of MILESTONES){const done=g.done.includes(m.id),cur=g.curMilestone()===m;
@@ -288,7 +301,7 @@ export class UI{
     c.save();c.translate(X(p.pos.x),X(p.pos.z));c.rotate(-p.yaw+Math.PI);c.fillStyle='#fff';c.strokeStyle='#000';c.lineWidth=2;c.beginPath();c.moveTo(0,-10);c.lineTo(7,8);c.lineTo(0,4);c.lineTo(-7,8);c.closePath();c.stroke();c.fill();c.restore();
   }
   helpHTML(){
-    const rows=[['W A S D','Move'],['Shift','Sprint'],['Space','Jump / swim up'],['Mouse','Look'],['LMB','Swing pickaxe / place / deconstruct'],['RMB / Esc','Cancel tool'],['E','Hold to hand-mine a node · interact with machines'],['Q','Build menu'],['R / Wheel','Rotate building'],['X','Deconstruct mode'],['G','Copy the building you look at'],['Tab / I','Inventory &amp; hand crafting'],['V','Resource scanner (reveals nodes)'],['M','Map'],['J','Milestones'],['F','Eat raw meat'],['O','Toggle shadows']];
+    const rows=[['W A S D','Move'],['Shift','Sprint'],['Space','Jump / swim up'],['Mouse','Look'],['LMB','Swing pickaxe / place / deconstruct'],['RMB / Esc','Cancel tool'],['E','Hold to hand-mine a node · interact with machines'],['Q','Build menu'],['R / Wheel','Rotate building'],['X','Deconstruct mode'],['G','Copy the building you look at'],['Tab / I','Inventory &amp; hand crafting'],['V','Resource scanner (reveals nodes)'],['M','Map'],['J','Milestones'],['U','Upgrades'],['F','Eat raw meat'],['O','Toggle shadows (Medium/High graphics)']];
     return `<h3 style="font-size:20px">Controls &amp; Guide</h3><table class="k">${rows.map(r=>`<tr><td><kbd>${r[0]}</kbd></td><td>${r[1]}</td></tr>`).join('')}</table><br>
     <h3>How to build a factory</h3><div class="small" style="font-size:13px;line-height:1.6">1. Press <b>V</b> to scan for resource nodes — look for glowing crystals (colour = resource, more crystals = purer).<br>2. Build a <b>Miner</b> on a node and a <b>Solar Array</b> for power (solar is weaker at dawn/dusk and dead at night — Coal Generators fix that).<br>3. Lay <b>Conveyor Belts</b> from the miner's front (arrow side). Hold LMB and drag to paint belt lines. Belts accept items from behind and from the sides.<br>4. Feed ore into a <b>Smelter</b>, then ingots into a <b>Constructor</b> (choose the recipe with E). Chain machines with belts.<br>5. End your line at a <b>Delivery Depot</b> to complete milestones and unlock new machines.<br>6. Beware the wilds: wolves hunt in packs (more at night), bears and boars fight back, scorpions lurk in the desert.</div>`;
   }

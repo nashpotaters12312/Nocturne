@@ -13,12 +13,15 @@ const DEFS={
   sulfur:{count:11,biomes:[B.DESERT,B.ROCK,B.SWAMP]},
   quartz:{count:12,biomes:[B.SNOW,B.ROCK,B.DESERT]},
   bauxite:{count:11,biomes:[B.SWAMP,B.ROCK,B.FOREST]},
-  uranium:{count:7,biomes:[B.SNOW,B.ROCK],minH:24},
+  uranium:{tol:6.5,count:7,biomes:[B.SNOW,B.ROCK],minH:24},
+  tin_ore:{count:14,biomes:[B.GRASS,B.SWAMP,B.SAND,B.FOREST],near:[100,210]},
+  titanium_ore:{tol:6.5,count:9,biomes:[B.SNOW,B.ROCK],minH:14},
+  ruby_ore:{count:9,biomes:[B.DESERT,B.ROCK]},
 };
 export function placeNodes(world,seed=5){
   const rng=mulberry32(seed),nodes=[];
   const free=(x,z,r)=>nodes.every(n=>Math.hypot(n.x-x,n.z-z)>r);
-  const flat=(x,z)=>{let mn=1e9,mx=-1e9;for(let a=-8;a<=8;a+=4)for(let b=-8;b<=8;b+=4){const h=world.heightAt(x+a,z+b);mn=Math.min(mn,h);mx=Math.max(mx,h);}return mx-mn<3.2&&mn>2.2;};
+  const flat=(x,z,tol=3.2)=>{let mn=1e9,mx=-1e9;for(let a=-8;a<=8;a+=4)for(let b=-8;b<=8;b+=4){const h=world.heightAt(x+a,z+b);mn=Math.min(mn,h);mx=Math.max(mx,h);}return mx-mn<tol&&mn>2.2;};
   const snap=v=>Math.round(v/CELL)*CELL;
   const purity=()=>{const r=rng();return r<0.3?0:r<0.78?1:2;};
   for(const [type,def] of Object.entries(DEFS)){
@@ -29,7 +32,7 @@ export function placeNodes(world,seed=5){
       for(let t=0;t<3000&&!ok;t++){
         if(def.near&&made===0){const a=rng()*Math.PI*2,d=def.near[0]+rng()*(def.near[1]-def.near[0]);x=snap(Math.cos(a)*d);z=snap(Math.sin(a)*d);}
         else{x=snap((rng()*2-1)*(HALF-120));z=snap((rng()*2-1)*(HALF-120));}
-        if(!flat(x,z)||!free(x,z,42))continue;
+        if(!flat(x,z,def.tol)||!free(x,z,42))continue;
         if(!(def.near&&made===0)&&!def.biomes.includes(world.biomeAt(x,z)))continue;
         if(def.minH&&world.heightAt(x,z)<def.minH)continue;
         ok=true;
@@ -39,7 +42,7 @@ export function placeNodes(world,seed=5){
       const group=[{x,z}];
       for(let k=1;k<size;k++){
         for(let t=0;t<40;t++){const a=rng()*Math.PI*2,d=16+rng()*8,px=snap(x+Math.cos(a)*d),pz=snap(z+Math.sin(a)*d);
-          if(flat(px,pz)&&free(px,pz,13)&&group.every(g=>Math.hypot(g.x-px,g.z-pz)>12)){group.push({x:px,z:pz});break;}}
+          if(flat(px,pz,def.tol)&&free(px,pz,13)&&group.every(g=>Math.hypot(g.x-px,g.z-pz)>12)){group.push({x:px,z:pz});break;}}
       }
       for(const p of group){if(made>=def.count)break;
         let pu=purity();if(made===0&&def.near)pu=1;

@@ -22,9 +22,10 @@
   <p>Land on an untamed world, mine its many resource cores, and build a sprawling automated factory — while wolves, bears and scorpions watch from the wilds.</p>
   <div id="loadbar"><i id="loadfill"></i></div><div id="loadtxt">Preparing…</div>
   <div class="row"><button id="btnContinue" class="hidden">Continue</button><button id="btnNew" class="hidden">New Game</button></div>
+  <div class="small" style="margin-top:12px">Graphics <select id="qsel"><option value="auto">Auto (Chromebook-friendly)</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select> <span id="qinfo"></span></div>
   <div class="keys small">WASD move · Shift sprint · Space jump · Mouse look · LMB swing / place · E mine / interact · Q build menu · Tab inventory &amp; crafting · V scan · M map · J milestones · H help</div>
 </div></div>
-<div id="pause" class="screen hidden"><div class="card"><h2>Paused</h2><div class="row col"><button id="btnResume">Resume</button><button id="btnSave">Save Game</button><button id="btnHelp">Controls</button><button id="btnQuit">New Game (erase save)</button></div></div></div>
+<div id="pause" class="screen hidden"><div class="card"><h2>Paused</h2><div class="row col"><button id="btnResume">Resume</button><button id="btnSave">Save Game</button><button id="btnHelp">Controls</button><div class="small">Graphics (reloads) <select id="qsel2"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div><button id="btnQuit">New Game (erase save)</button></div></div></div>
 <div id="panel" class="screen hidden"><div class="card wide"><button id="pclose">✕</button><div id="pbody"></div></div></div>
 <div id="death" class="hidden">YOU DIED</div>
 <script type="module" src="js/main.js"></script>

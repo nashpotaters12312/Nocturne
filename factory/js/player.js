@@ -5,7 +5,7 @@ export class Player{
   constructor(world,veg,factory,camera,scene){
     this.world=world;this.veg=veg;this.factory=factory;this.camera=camera;
     this.pos=new THREE.Vector3(0,world.heightAt(0,0)+1,0);this.vel=new THREE.Vector3();
-    this.yaw=0.6;this.pitch=-0.1;this.onGround=false;this.sprinting=false;this.inWater=false;this.hp=100;this.dead=false;this.speedMul=1;this.fly=false;
+    this.yaw=0.6;this.pitch=-0.1;this.onGround=false;this.sprinting=false;this.inWater=false;this.hp=100;this.maxHp=100;this.jumpMul=1;this.dead=false;this.speedMul=1;this.fly=false;
     this.keys={};this.hurt=0;this.swing=0;this.mining=0;this.bob=0;this.hitFlash=0;this.regenT=0;this.deathT=0;
     // held pickaxe
     const m=new THREE.MeshStandardMaterial({color:0x9a9fa8,metalness:0.7,roughness:0.4}),wm=new THREE.MeshStandardMaterial({color:0x7a5230,roughness:0.9});
@@ -20,7 +20,7 @@ export class Player{
     this.regenT=6;if(this.onDamage)this.onDamage(n);
     if(this.hp<=0){this.hp=0;this.dead=true;this.deathT=0;if(this.onDeath)this.onDeath();}
   }
-  respawn(){this.hp=100;this.dead=false;this.setSpawn();}
+  respawn(){this.hp=this.maxHp;this.dead=false;this.setSpawn();}
   look(dx,dy){this.yaw-=dx*0.0022;this.pitch=Math.max(-1.5,Math.min(1.5,this.pitch-dy*0.0022));}
   forward(){return new THREE.Vector3(-Math.sin(this.yaw)*Math.cos(this.pitch),Math.sin(this.pitch),-Math.cos(this.yaw)*Math.cos(this.pitch));}
   eye(){return new THREE.Vector3(this.pos.x,this.pos.y+1.65,this.pos.z);}
@@ -39,7 +39,7 @@ export class Player{
     this.vel.x+=(mx*sp-this.vel.x)*Math.min(1,acc*dt);this.vel.z+=(mz*sp-this.vel.z)*Math.min(1,acc*dt);
     if(this.fly){const vy=(active&&k['Space']?1:0)-(active&&k['KeyC']?1:0);this.vel.y+=(vy*sp*0.7-this.vel.y)*Math.min(1,10*dt);}
     else if(this.inWater){this.vel.y+=(-this.vel.y)*Math.min(1,3*dt);this.vel.y+=(0.2-this.pos.y)*3*dt+(active&&k['Space']?25*dt:0);this.vel.y-=6*dt;}
-    else{this.vel.y-=24*dt;if(active&&k['Space']&&this.onGround&&!this.dead){this.vel.y=8.4;this.onGround=false;}}
+    else{this.vel.y-=24*dt;if(active&&k['Space']&&this.onGround&&!this.dead){this.vel.y=8.4*this.jumpMul;this.onGround=false;}}
     // move with collisions
     const np=this.pos.clone().addScaledVector(this.vel,dt);
     const tryX=new THREE.Vector3(np.x,this.pos.y,this.pos.z);if(this.factory.blocked(tryX.x,tryX.z,0.45)&&this.pos.y<(this.factory.blocked(tryX.x,tryX.z,0.45).y||0)+5){np.x=this.pos.x;this.vel.x=0;}
@@ -55,7 +55,7 @@ export class Player{
     else this.onGround=this.pos.y-gh<0.08&&this.vel.y<=0;
     if(this.onGround&&this.pos.y-gh<0.3)this.pos.y=gh;
     this.hitFlash=Math.max(0,this.hitFlash-dt);
-    if(this.regenT>0)this.regenT-=dt;else if(!this.dead&&this.hp<100)this.hp=Math.min(100,this.hp+2*dt);
+    if(this.regenT>0)this.regenT-=dt;else if(!this.dead&&this.hp<this.maxHp)this.hp=Math.min(this.maxHp,this.hp+2*dt);
     this.swing=Math.max(0,this.swing-dt*3.2);
     // camera
     const spd=Math.hypot(this.vel.x,this.vel.z);this.bob+=dt*spd*1.1;

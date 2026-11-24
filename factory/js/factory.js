@@ -11,7 +11,7 @@ export class Factory{
   constructor(world,scene,veg,game){
     this.world=world;this.scene=scene;this.veg=veg;this.game=game;this.cells=new Map();this.list=[];this.belts=[];this.nid=1;
     this.group=new THREE.Group();scene.add(this.group);this.br=new BeltRenderer(scene);
-    this.supply=0;this.demand=0;this.eff=1;this.acc=0;this.time=0;this.nodes=[];
+    this.mods={belt:1,miner:1,mach:1,power:1,solar:1};this.supply=0;this.demand=0;this.eff=1;this.acc=0;this.time=0;this.nodes=[];
     this.ghosts={};this.ghost=null;this.ghostType=null;
   }
   key(cx,cz){return cz*SEG+cx;}
@@ -140,10 +140,10 @@ export class Factory{
     if(steps===4)this.acc=0;
   }
   step(dt){
-    this.time+=dt;const eff=this.eff,day=this.game.sky.daylight;let supply=0,demand=0;
+    this.time+=dt;const eff=this.eff,M=this.mods,day=this.game.sky.daylight;let supply=0,demand=0;
     for(const b of this.belts){
       const it=b.items;if(!it.length)continue;
-      for(let i=0;i<it.length;i++){const lim=i===0?1:it[i-1].t-GAP;it[i].t=Math.min(it[i].t+BELT_V*dt,lim);}
+      for(let i=0;i<it.length;i++){const lim=i===0?1:it[i-1].t-GAP;it[i].t=Math.min(it[i].t+BELT_V*this.mods.belt*dt,lim);}
       const f=it[0];
       if(f.t>=0.999){const [dx,dz]=DIRS[b.rot],t=this.at(b.minCx+dx,b.minCz+dz);if(t&&this.deliver(t,f.type,b.rot))it.shift();}
     }
@@ -154,7 +154,7 @@ export class Factory{
           if(!b.node){b.status='nonode';break;}
           const mult=PURITY[b.node.purity].mult;
           const tot=Object.values(b.out).reduce((a,c)=>a+c,0);
-          if(tot>=5){b.status='blocked';}else{demand+=def.power;if(eff<=0.01)b.status='nopower';else{b.status='working';b.prog+=dt*eff*mult;if(b.prog>=1){b.prog-=1;b.out[b.node.type]=(b.out[b.node.type]||0)+1;this.game.stats.mined++;}}}
+          if(tot>=5){b.status='blocked';}else{demand+=def.power*M.power;if(eff<=0.01)b.status='nopower';else{b.status='working';b.prog+=dt*eff*mult*M.miner;if(b.prog>=1){b.prog-=1;b.out[b.node.type]=(b.out[b.node.type]||0)+1;this.game.stats.mined++;}}}
           const ty=b.node.type;if(b.out[ty]>0&&this.push(b,ty))b.out[ty]--;
           break;}
         case 'smelter':case 'constructor':case 'assembler':case 'foundry':{
@@ -166,9 +166,9 @@ export class Factory{
             const outCap=Object.values(r.out).reduce((a,c)=>a+c,0)*4;
             if(b.prog>0||has){
               if(tot>=outCap&&b.prog<=0)b.status='blocked';
-              else{demand+=def.power;if(eff<=0.01)b.status='nopower';else{
+              else{demand+=def.power*M.power;if(eff<=0.01)b.status='nopower';else{
                 if(b.prog===0)for(const k in r.in)b.in[k]-=r.in[k];
-                b.status='working';b.prog+=dt*eff/r.time;if(b.prog>=1){b.prog=0;for(const k in r.out)b.out[k]=(b.out[k]||0)+r.out[k];}}}
+                b.status='working';b.prog+=dt*eff*M.mach/r.time;if(b.prog>=1){b.prog=0;for(const k in r.out)b.out[k]=(b.out[k]||0)+r.out[k];}}}
             }else b.status='waiting';
           }
           for(const k in b.out)if(b.out[k]>0){if(this.push(b,k))b.out[k]--;break;}
@@ -177,7 +177,7 @@ export class Factory{
           if(b.buf){const [dx,dz]=DIRS[b.rot];const outs=[b.rot,(b.rot+1)%4,(b.rot+3)%4];
             for(let k=0;k<3;k++){const d=outs[(b.rr+k)%3],t=this.at(b.minCx+DIRS[d][0],b.minCz+DIRS[d][1]);if(t&&this.deliver(t,b.buf,d)){b.buf=null;b.rr=(b.rr+k+1)%3;break;}}}
           b.status=b.buf?'working':'idle';break;}
-        case 'solar':supply+=def.gen*Math.max(0,Math.min(1,(day-0.05)*1.3));b.status=day>0.08?'working':'nopower';break;
+        case 'solar':supply+=def.gen*M.solar*Math.max(0,Math.min(1,(day-0.05)*1.3));b.status=day>0.08?'working':'nopower';break;
         case 'coal_gen':case 'nuclear':{
           const life=b.type==='coal_gen'?8:90;
           if(b.burn<=0&&b.fuel>0){b.fuel--;b.burn=life;}
@@ -192,7 +192,7 @@ export class Factory{
   }
   // ---- visuals
   animate(dt,playerPos,sunDir){
-    this.br.scroll(dt);this.br.beginItems();
+    this.br.scroll(dt*this.mods.belt);this.br.beginItems();
     const t=this.time;
     for(const b of this.belts){
       const [dx,dz]=DIRS[b.rot],yaw=Math.atan2(-dz,dx);

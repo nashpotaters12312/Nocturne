@@ -3,6 +3,7 @@ import {mulberry32,Simplex,fbm,smooth} from './noise.js';
 import {WORLD,HALF,CELL} from './data.js';
 import {B} from './world.js';
 import * as G from './geo.js';
+import {Q} from './quality.js';
 
 const CH=128,wind={value:0};
 const GREEN=(r,g,b)=>new THREE.Color(r,g,b);
@@ -54,7 +55,7 @@ export class Vegetation{
     const sp=6.5;
     for(let gz=-HALF+10;gz<HALF-10;gz+=sp)for(let gx=-HALF+10;gx<HALF-10;gx+=sp){
       const x=gx+rng()*sp,z=gz+rng()*sp,h=w.heightAt(x,z);
-      if(h<1.0||nearNode(x,z,12))continue;
+      if(h<1.0||nearNode(x,z,12)||rng()>Q.trees)continue;
       if(x*x+z*z<3600&&rng()<0.85)continue;
       const b=w.biomeAt(x,z),slope=w.slopeAt(x,z),d=fbm(nd,x*0.012,z*0.012,2),temp=w.tempAt(x,z),r=rng();
       const sc=0.75+rng()*0.8,yaw=rng()*6.28;
@@ -78,9 +79,9 @@ export class Vegetation{
       switch(b){case B.GRASS:p=0.55;t=GREEN(1,1.1,0.8);break;case B.FOREST:p=0.4;t=GREEN(0.7,1,0.7);break;case B.SWAMP:p=0.5;t=GREEN(0.6,0.75,0.5);break;
         case B.DESERT:p=0.07;t=GREEN(1.9,1.4,0.6);break;case B.SAND:p=0.05;t=GREEN(1.6,1.4,0.8);break;case B.ROCK:p=0.06;t=GREEN(0.9,0.9,0.7);break;}
       if(!p||w.slopeAt(x,z)>0.8||nearNode(x,z,7))continue;
-      if(r>p)continue;
+      if(r>p*Q.grass)continue;
       add('grass',x,z,0.8+rng()*0.8,rng()*6.28,t,0);
-      if((b===B.GRASS||b===B.FOREST)&&rng()<0.06){const fc=[[1,0.9,0.2],[0.95,0.3,0.5],[0.7,0.5,1],[1,1,1],[1,0.5,0.2]][Math.floor(rng()*5)];add('flower',x+0.5,z+0.4,0.8+rng()*0.6,0,GREEN(...fc),0);}
+      if((b===B.GRASS||b===B.FOREST)&&rng()<0.06*Q.flowers){const fc=[[1,0.9,0.2],[0.95,0.3,0.5],[0.7,0.5,1],[1,1,1],[1,0.5,0.2]][Math.floor(rng()*5)];add('flower',x+0.5,z+0.4,0.8+rng()*0.6,0,GREEN(...fc),0);}
     }
     // build instanced meshes
     const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),pv=new THREE.Vector3(),sv=new THREE.Vector3(),up=new THREE.Vector3(0,1,0);
@@ -89,7 +90,7 @@ export class Vegetation{
       b.items.forEach((it,i)=>{q.setFromAxisAngle(up,it.yaw);pv.set(it.x,it.y,it.z);sv.set(it.s,it.s*(b.type==='grass'?1:1),it.s);m4.compose(pv,q,sv);im.setMatrixAt(i,m4);
         if(it.tint)im.setColorAt(i,it.tint);else if(b.type==='rock'||b.type==='boulder'){const bi=w.biomeAt(it.x,it.z);im.setColorAt(i,bi===B.DESERT?GREEN(1.3,0.9,0.65):bi===B.SNOW?GREEN(1.2,1.25,1.3):GREEN(1,1,1));}});
       im.instanceMatrix.needsUpdate=true;im.computeBoundingSphere();im.castShadow=!!sp2.shadow;im.receiveShadow=false;
-      im.userData={type:b.type,items:b.items,view:sp2.view,cx:0,cz:0};
+      im.userData={type:b.type,items:b.items,view:sp2.view*Q.view,cx:0,cz:0};
       this.scene.add(im);this.meshes.push(im);
       const [ccx,ccz]=key.split(',').map(Number);im.userData.cx=-HALF+(ccx+0.5)*CH;im.userData.cz=-HALF+(ccz+0.5)*CH;
       const ck=ccx+','+ccz;let a=this.chunks.get(ck);if(!a){a=[];this.chunks.set(ck,a);}a.push(im);
