@@ -47,8 +47,8 @@ export class Sky{
     const a=(this.time-0.25)*Math.PI*2;
     this.sunDir.set(Math.cos(a)*0.85,Math.sin(a),Math.cos(a)*0.3+0.25).normalize();
     const day=smooth(-0.08,0.22,this.sunDir.y),dusk=1-Math.abs(this.sunDir.y*3.2);const glow=smooth(0,1,Math.max(0,Math.min(1,dusk)))*smooth(-0.15,0.05,this.sunDir.y);
-    const zen=new THREE.Color(0x02030a).lerp(new THREE.Color(0x2f6fc4),day);
-    const hor=new THREE.Color(0x070a16).lerp(new THREE.Color(0xa6cdef),day).lerp(new THREE.Color(0xff8a4a),glow*0.75);
+    const zen=new THREE.Color(0x02030a).lerp(new THREE.Color(0x4f79a8),day);
+    const hor=new THREE.Color(0x070a16).lerp(new THREE.Color(0xb7c6d2),day).lerp(new THREE.Color(0xd99a70),glow*0.6);
     this.uni.uZen.value.copy(zen);this.uni.uHor.value.copy(hor);this.uni.uNight.value=1-day;
     this.uni.uSunCol.value.set(1,0.75,0.45).multiplyScalar(smooth(-0.1,0.1,this.sunDir.y));
     this.fog.color.copy(hor).lerp(new THREE.Color(0x889ab0),0.1);this.fog.density=lerp(0.0045,0.0031,day)*Q.fogMul;
@@ -59,7 +59,7 @@ export class Sky{
     this.sun.intensity=moon?0.35*(1-day):3.0*smooth(-0.02,0.3,this.sunDir.y)+0.2;
     this.hemi.intensity=0.12+0.78*day;this.hemi.color.set(0x7090c0).lerp(new THREE.Color(0xb4d6ff),day);this.hemi.groundColor.set(0x1a1a22).lerp(new THREE.Color(0x6a6a50),day);
     this.stars.material.opacity=smooth(0.1,-0.15,this.sunDir.y);this.stars.position.copy(playerPos);this.dome.position.copy(playerPos);
-    this.cloudMat.color.set(0x10131c).lerp(new THREE.Color(0xffffff),day).lerp(new THREE.Color(0xffb890),glow*0.6);
+    this.cloudMat.color.set(0x10131c).lerp(new THREE.Color(0xe8eaec),day).lerp(new THREE.Color(0xffb890),glow*0.6);
     for(const c of this.clouds.children){c.position.x+=dt*4;if(c.position.x>2200)c.position.x=-2200;}
   }
 }

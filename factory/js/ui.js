@@ -24,13 +24,15 @@ export class UI{
   }
   active(){return (this.locked||this.force)&&!this.panel&&!this.pauseShown;}
   paused(){return this.pauseShown;}
-  lock(){this.pauseShown=false;$('pause').classList.add('hidden');try{const p=this.canvas.requestPointerLock();if(p&&p.catch)p.catch(()=>{});}catch(e){}}
+  lock(){this.pauseShown=false;$('pause').classList.add('hidden');if(this.noLock){this.force=true;return;}try{const p=this.canvas.requestPointerLock();if(p&&p.catch)p.catch(()=>this.lockFailed());}catch(e){this.lockFailed();}}
+  lockFailed(){if(this.noLock)return;this.noLock=true;this.force=true;this.notify('Mouse capture is unavailable here: hold the right mouse button and drag to look. P pauses.');}
   notify(msg,type=''){const d=document.createElement('div');d.className='notif '+type;d.textContent=msg;const n=$('notifs');n.appendChild(d);while(n.children.length>6)n.removeChild(n.firstChild);setTimeout(()=>{d.style.opacity=0;setTimeout(()=>d.remove(),500);},4500);}
   mkScan(){const m=new THREE.Mesh(new THREE.SphereGeometry(1,32,16),new THREE.MeshBasicMaterial({color:0x38c8ff,transparent:true,opacity:0.18,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending,fog:false}));m.visible=false;this.scene=this.camera.parent;this.scanMesh=m;}
   bind(){
     const g=this.game;
     document.addEventListener('pointerlockchange',()=>{this.locked=document.pointerLockElement===this.canvas;if(!this.locked&&g.running&&!this.panel&&!this.force){this.pauseShown=true;$('pause').classList.remove('hidden');}});
-    document.addEventListener('mousemove',e=>{if(this.locked&&this.active())this.player.look(e.movementX,e.movementY);});
+    document.addEventListener('pointerlockerror',()=>this.lockFailed());
+    document.addEventListener('mousemove',e=>{if(this.active()&&(this.locked||this.noLock&&this.mouse.r))this.player.look(e.movementX,e.movementY);});
     addEventListener('keydown',e=>{
       if(!g.running)return;
       if(e.code==='Tab'||e.code==='Space'&&this.locked)e.preventDefault();
@@ -44,7 +46,7 @@ export class UI{
     this.canvas.addEventListener('mousedown',e=>{
       if(!g.running||this.pauseShown||this.panel)return;
       if(!this.locked&&!this.force){this.lock();return;}
-      if(e.button===0){this.mouse.l=true;this.onClick();}if(e.button===2){this.mouse.r=true;if(this.mode!=='hand'){this.setMode('hand');}else this.onKey('KeyX');}
+      if(e.button===0){this.mouse.l=true;this.onClick();}if(e.button===2){this.mouse.r=true;if(this.noLock)return;if(this.mode!=='hand'){this.setMode('hand');}else this.onKey('KeyX');}
     });
     addEventListener('mouseup',e=>{if(e.button===0){this.mouse.l=false;this.lastBelt=null;this.lastCell=null;}if(e.button===2)this.mouse.r=false;});
     addEventListener('contextmenu',e=>e.preventDefault());
@@ -55,7 +57,7 @@ export class UI{
   }
   onKey(code,e){
     const g=this.game;
-    if(code==='Escape'){if(this.panel){this.closePanel();}else if(this.mode!=='hand'){this.setMode('hand');}return;}
+    if(code==='Escape'||code==='KeyP'&&this.noLock){if(this.panel){this.closePanel();}else if(this.mode!=='hand'){this.setMode('hand');}else if(this.noLock){this.pauseShown=!this.pauseShown;$('pause').classList.toggle('hidden',!this.pauseShown);}return;}
     if(this.pauseShown)return;
     const panelKeys={KeyQ:'build',Tab:'inv',KeyI:'inv',KeyJ:'mile',KeyU:'upg',KeyM:'map',KeyH:'help'};
     if(panelKeys[code]){if(this.panel===panelKeys[code])this.closePanel();else this.openPanel(panelKeys[code]);return;}

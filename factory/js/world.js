@@ -4,8 +4,8 @@ import {WORLD,SEG,CELL,HALF,N} from './data.js';
 
 export const B={SAND:0,GRASS:1,FOREST:2,SWAMP:3,DESERT:4,ROCK:5,SNOW:6};
 export const BIOME_NAMES=['Beach','Grassland','Forest','Swamp','Desert','Highlands','Snowfields'];
-const COL={grass:[0.37,0.62,0.22],forest:[0.2,0.43,0.17],swamp:[0.27,0.33,0.17],mud:[0.24,0.2,0.13],desert:[0.84,0.7,0.4],red:[0.66,0.34,0.22],
-  rock:[0.45,0.43,0.4],snow:[0.93,0.95,0.98],sand:[0.85,0.78,0.55],dirt:[0.45,0.36,0.22],pad:[0.5,0.5,0.48]};
+const COL={grass:[0.42,0.5,0.29],dry:[0.52,0.52,0.34],forest:[0.27,0.36,0.22],moss:[0.3,0.38,0.24],swamp:[0.31,0.33,0.23],mud:[0.27,0.24,0.18],desert:[0.74,0.65,0.48],red:[0.58,0.4,0.31],
+  rock:[0.47,0.45,0.42],rock2:[0.38,0.36,0.34],scree:[0.55,0.52,0.47],snow:[0.88,0.9,0.92],sand:[0.76,0.71,0.56],wetsand:[0.55,0.5,0.4],dirt:[0.44,0.38,0.28],pad:[0.48,0.48,0.46]};
 const mix=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
 const toLin=c=>c.map(v=>Math.pow(v,2.2));
 
@@ -28,7 +28,7 @@ export class World{
         const cont=fbm(nC,wx*0.0016,wz*0.0016,4);
         const hills=fbm(nH,wx*0.006,wz*0.006,4)*5+fbm(nH2,x*0.025,z*0.025,3)*1.3;
         const mountM=smooth(0.0,0.5,fbm(nM,wx*0.0011+50,wz*0.0011,3)+0.12);
-        let h=9+cont*16+hills+mountM*(ridged(nR,wx*0.003,wz*0.003,5)*72+6);
+        let h=9+cont*16+hills+fbm(nH2,x*0.08+31,z*0.08,2)*0.4+mountM*(ridged(nR,wx*0.003,wz*0.003,5)*72+6);
         let temp=fbm(nT,x*0.0013,z*0.0013,3)*1.4-Math.max(0,h-16)*0.018;
         let moist=fbm(nW,x*0.0016+9,z*0.0016,3)*1.4;
         // rivers
@@ -67,14 +67,21 @@ export class World{
     const snow=smooth(40,52,h-temp*14),rock=Math.max(smooth(0.6,1.0,slope),smooth(32,44,h))*(1-snow);
     const sand=smooth(2.4,0.7,h);
     const pn=this.nPatch.noise(x*0.03,z*0.03),cn=this.nColor.noise(x*0.18,z*0.18)*0.5+this.nColor.noise(x*0.6,z*0.6)*0.25;
-    let c=mix(COL.grass,[0.5,0.62,0.2],smooth(0.1,0.7,this.nPatch.noise(x*0.012+5,z*0.012)));
+    let c=mix(COL.grass,COL.dry,smooth(0.1,0.7,this.nPatch.noise(x*0.012+5,z*0.012)));
     c=mix(c,COL.dirt,smooth(0.45,0.8,pn)*0.7);
-    c=mix(c,COL.forest,forest);c=mix(c,mix(COL.swamp,COL.mud,smooth(0.0,0.6,pn)),swamp);
+    c=mix(c,mix(COL.forest,COL.moss,smooth(0.2,0.8,cn+0.3)),forest);c=mix(c,mix(COL.swamp,COL.mud,smooth(0.0,0.6,pn)),swamp);
     let dc=mix(COL.desert,COL.red,Math.max(smooth(0.3,0.7,slope),this.mesa[k]*0.6));
-    c=mix(c,dc,desert);c=mix(c,COL.rock,rock);c=mix(c,COL.snow,snow);c=mix(c,COL.sand,sand);
+    c=mix(c,dc,desert);
+    // rock strata on steep faces, scree at the foot of slopes
+    const strata=0.5+0.5*Math.sin(h*1.7+cn*3);c=mix(c,mix(COL.rock,COL.rock2,strata),rock);
+    c=mix(c,COL.scree,smooth(0.35,0.55,slope)*(1-rock)*(1-snow)*0.55);
+    c=mix(c,COL.snow,snow*(1-smooth(0.9,1.4,slope)*0.6));c=mix(c,mix(COL.wetsand,COL.sand,smooth(0.2,1.6,h)),sand);
     const ta=this.tintAmt[k];if(ta>0)c=mix(c,[this.tintCol[k*3],this.tintCol[k*3+1],this.tintCol[k*3+2]],ta);
     const lk=this.lock[k];if(lk>0)c=mix(c,COL.pad,0.75);
-    const br=1+cn*0.28;
+    // curvature: hollows darker, ridges catch light
+    const N2=SEG+1,hh=this.hgt,ii=Math.min(Math.max(i,1),SEG-1),jj=Math.min(Math.max(j,1),SEG-1),kk=jj*N2+ii;
+    const lap=(hh[kk-1]+hh[kk+1]+hh[kk-N2]+hh[kk+N2]-4*hh[kk]);
+    const br=(1+cn*0.22)*clamp(1-lap*0.045,0.72,1.12);
     const L=toLin([c[0]*br,c[1]*br,c[2]*br]);
     this.col[k*3]=L[0];this.col[k*3+1]=L[1];this.col[k*3+2]=L[2];
     let id=B.GRASS;
@@ -149,9 +156,12 @@ export class World{
     this.geo.attributes.position.needsUpdate=true;this.geo.attributes.normal.needsUpdate=true;this.geo.attributes.color.needsUpdate=true;
   }
   detailTex(){
-    const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d'),id=x.createImageData(128,128);
-    for(let i=0;i<128*128;i++){const v=225+Math.random()*30;id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=v;id.data[i*4+3]=255;}
-    x.putImageData(id,0,0);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;return t;
+    const S=256,c=document.createElement('canvas');c.width=c.height=S;const x=c.getContext('2d');
+    x.fillStyle='rgb(236,236,236)';x.fillRect(0,0,S,S);
+    const sp=(n,rmin,rmax,lo,hi,a)=>{for(let i=0;i<n;i++){const v=lo+Math.random()*(hi-lo)|0,r=rmin+Math.random()*(rmax-rmin),px=Math.random()*S,py=Math.random()*S;x.fillStyle=`rgba(${v},${v},${v},${a})`;
+      for(const [ox,oy] of [[0,0],[S,0],[-S,0],[0,S],[0,-S]]){x.beginPath();x.arc(px+ox,py+oy,r,0,7);x.fill();}}};
+    sp(60,10,26,200,255,0.18);sp(900,1,3,150,255,0.35);sp(2500,0.4,1.2,120,255,0.5);
+    const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;return t;
   }
   mapImage(){
     const c=document.createElement('canvas');c.width=c.height=SEG;const x=c.getContext('2d'),id=x.createImageData(SEG,SEG);

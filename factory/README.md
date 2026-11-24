@@ -13,7 +13,8 @@ python3 -m http.server 8123
 
 ## What's in it
 - **Procedural 1.5 km world** – domain-warped fBm continents, ridged mountains, winding rivers, lakes, desert mesas; 7 biomes
-  (beach, grassland, forest, swamp, desert, highlands, snowfields) with ~40 k trees, rocks, cacti, palms, reeds, grass and flowers.
+  (beach, grassland, forest, swamp, desert, highlands, snowfields) in a muted natural palette, with trees, fallen logs, stumps, ferns, mushrooms, cattails, lily pads, pebbles, rock spires, ice formations and grass.
+- **Landmarks** – a crashed drop pod at the landing site, standing-stone circles, desert rock arches, overgrown forest ruins and abandoned survey towers.
 - **150 resource nodes in 12 types** – iron, copper, limestone, coal, caterium, sulfur, quartz, bauxite, uranium, plus tin, titanium and ruby – each Impure / Normal / Pure,
   often found in clusters, matched to biomes (uranium and quartz high in the snow, sulfur in the desert, bauxite in swamps …).
   Press **V** to scan and reveal them on the compass, minimap and map.

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {World,B,BIOME_NAMES} from './world.js';
 import {placeNodes,createNodeMeshes,nodeLabel} from './nodes.js';
 import {Vegetation} from './vegetation.js';
+import {buildLandmarks} from './landmarks.js';
 import {Sky} from './sky.js';
 import {Wildlife} from './wildlife.js';
 import {Factory,recipesFor,RMAP} from './factory.js';
@@ -13,6 +14,7 @@ import {WORLD,HALF,CELL,SEG,ITEMS,RECIPES,BUILDINGS,START_UNLOCKED,START_INV,MIL
 
 const $=id=>document.getElementById(id);
 const SAVE='ironvale-save-v1';
+const store={get:k=>{try{return localStorage.getItem(k);}catch(e){return null;}},set:(k,v)=>{try{localStorage.setItem(k,v);return true;}catch(e){return false;}},del:k=>{try{localStorage.removeItem(k);}catch(e){}}};
 class Inventory{constructor(){this.c={};}get(k){return this.c[k]||0;}add(k,n=1){this.c[k]=(this.c[k]||0)+n;}has(k,n=1){return this.get(k)>=n;}remove(k,n=1){this.c[k]=Math.max(0,this.get(k)-n);}
   canAfford(cost){return Object.entries(cost).every(([k,n])=>this.has(k,n));}pay(cost){for(const k in cost)this.remove(k,cost[k]);}}
 
@@ -24,7 +26,7 @@ const yieldUI=()=>new Promise(r=>setTimeout(r,16));
 async function init(){
   const renderer=new THREE.WebGLRenderer({canvas:$('gl'),antialias:Q.aa,powerPreference:'high-performance',stencil:false});
   let pr=Math.min(devicePixelRatio,Q.pr);renderer.setPixelRatio(pr);renderer.setSize(innerWidth,innerHeight);
-  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;renderer.shadowMap.enabled=Q.shadows;renderer.shadowMap.type=Q.shadowMap>1024?THREE.PCFSoftShadowMap:THREE.PCFShadowMap;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=0.95;renderer.shadowMap.enabled=Q.shadows;renderer.shadowMap.type=Q.shadowMap>1024?THREE.PCFSoftShadowMap:THREE.PCFShadowMap;
   const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,0.1,Q.far);
   addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();});
   setLoad(0.02,'Shaping the terrain…');await yieldUI();
@@ -36,7 +38,7 @@ async function init(){
   const water=makeWater();scene.add(water.mesh);
   createNodeMeshes(nodes,world,scene);
   setLoad(0.55,'Growing forests…');await yieldUI();
-  const veg=new Vegetation(world,scene,nodes);
+  const veg=new Vegetation(world,scene,nodes);buildLandmarks(world,scene,veg,nodes);
   setLoad(0.75,'Releasing wildlife…');await yieldUI();
   const sky=new Sky(scene,renderer);game.sky=sky;
   const wild=new Wildlife(world,scene,sky);
@@ -78,12 +80,12 @@ async function init(){
   };
   game.deposit=(item,n)=>{const m=game.curMilestone();if(!m)return;const need=(m.req[item]||0)-(game.delivered[item]||0);const q=Math.min(n,need,game.inv.get(item));if(q>0){game.inv.remove(item,q);game.delivered[item]=(game.delivered[item]||0)+q;game.checkMilestone();sfx.ui();}};
   game.save=()=>{
-    try{localStorage.setItem(SAVE,JSON.stringify({v:1,inv:game.inv.c,unlocked:[...game.unlocked],done:game.done,delivered:game.delivered,sunk:game.sunk,time:sky.time,
-      upg:game.upg,pos:[player.pos.x,player.pos.y,player.pos.z],yaw:player.yaw,hp:player.hp,disc:nodes.filter(n=>n.discovered).map(n=>n.id),buildings:factory.serialize(),stats:game.stats}));return true;}catch(e){console.warn(e);return false;}
+    try{return store.set(SAVE,JSON.stringify({v:1,inv:game.inv.c,unlocked:[...game.unlocked],done:game.done,delivered:game.delivered,sunk:game.sunk,time:sky.time,
+      upg:game.upg,pos:[player.pos.x,player.pos.y,player.pos.z],yaw:player.yaw,hp:player.hp,disc:nodes.filter(n=>n.discovered).map(n=>n.id),buildings:factory.serialize(),stats:game.stats}));}catch(e){console.warn(e);return false;}
   };
-  game.hasSave=()=>!!localStorage.getItem(SAVE);
+  game.hasSave=()=>!!store.get(SAVE);
   game.loadSave=()=>{
-    try{const s=JSON.parse(localStorage.getItem(SAVE));if(!s)return false;
+    try{const s=JSON.parse(store.get(SAVE));if(!s)return false;
       game.inv.c=s.inv;game.unlocked=new Set(s.unlocked);game.done=s.done;game.delivered=s.delivered||{};game.sunk=s.sunk||0;sky.time=s.time;
       player.pos.set(...s.pos);player.yaw=s.yaw;player.hp=s.hp||100;Object.assign(game.stats,s.stats||{});
       for(const id of s.disc||[])nodes[id]&&(nodes[id].discovered=true);
@@ -94,14 +96,14 @@ async function init(){
   $('btnNew').classList.remove('hidden');if(game.hasSave())$('btnContinue').classList.remove('hidden');
   $('loadbar').classList.add('hidden');
   const start=(cont)=>{
-    if(cont){game.loadSave();}else{localStorage.removeItem(SAVE);game.notify('Welcome to Ironvale. Find a glowing resource node and build a Miner (Q).');game.notify('Hold E on a node to mine by hand. Swing with LMB.');}
+    if(cont){game.loadSave();}else{store.del(SAVE);game.notify('Welcome to Ironvale. Find a glowing resource node and build a Miner (Q).');game.notify('Hold E on a node to mine by hand. Swing with LMB.');}
     $('title').classList.add('hidden');$('hud').classList.remove('hidden');ui.lock();game.running=true;
   };
   $('btnNew').onclick=()=>start(false);$('btnContinue').onclick=()=>start(true);
-  $('btnQuit').onclick=()=>{localStorage.removeItem(SAVE);location.reload();};
+  $('btnQuit').onclick=()=>{store.del(SAVE);location.reload();};
   setInterval(()=>{if(game.running)game.save();},30000);addEventListener('beforeunload',()=>{if(game.running)game.save();});
   game.start=start;
-  for(const id of ['qsel','qsel2']){const el=$(id);if(!el)continue;el.value=QSET;el.onchange=()=>{try{localStorage.setItem('ironvale-q',el.value);}catch(e){}if(game.running)game.save();location.reload();};}
+  for(const id of ['qsel','qsel2']){const el=$(id);if(!el)continue;el.value=QSET;el.onchange=()=>{store.set('ironvale-q',el.value);if(game.running)game.save();location.reload();};}
   const qi=document.getElementById('qinfo');if(qi)qi.textContent=`Graphics: ${QLEVEL.toUpperCase()}`+(QSET==='auto'?' (auto)':'');
 
   // ---- main loop
@@ -130,8 +132,8 @@ function makeWater(){
   const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d'),id=x.createImageData(128,128);
   for(let j=0;j<128;j++)for(let i=0;i<128;i++){const a=Math.sin(i/128*Math.PI*6)*0.5+Math.sin(j/128*Math.PI*8+i/40)*0.5,b=Math.sin((i+j)/128*Math.PI*10)*0.5;const o=(j*128+i)*4;id.data[o]=128+a*50;id.data[o+1]=128+b*50;id.data[o+2]=255;id.data[o+3]=255;}
   x.putImageData(id,0,0);const nm=new THREE.CanvasTexture(c);nm.wrapS=nm.wrapT=THREE.RepeatWrapping;nm.repeat.set(220,220);
-  const mat=new THREE.MeshStandardMaterial({color:0x2a7fa6,roughness:0.08,metalness:0.25,transparent:true,opacity:0.8,normalMap:nm,normalScale:new THREE.Vector2(0.5,0.5)});
+  const mat=new THREE.MeshStandardMaterial({color:0x3d6673,roughness:0.12,metalness:0.25,transparent:true,opacity:0.8,normalMap:nm,normalScale:new THREE.Vector2(0.5,0.5)});
   const mesh=new THREE.Mesh(new THREE.PlaneGeometry(WORLD*1.6,WORLD*1.6),mat);mesh.rotation.x=-Math.PI/2;mesh.position.y=0;mesh.renderOrder=2;
-  return {mesh,update(t,cam,sky){nm.offset.set(t*0.004,t*0.0025);mat.color.setHex(0x2a7fa6).multiplyScalar(0.25+0.75*sky.daylight);mesh.position.x=0;}};
+  return {mesh,update(t,cam,sky){nm.offset.set(t*0.004,t*0.0025);mat.color.setHex(0x3d6673).multiplyScalar(0.25+0.75*sky.daylight);mesh.position.x=0;}};
 }
 init().catch(e=>{console.error(e);document.getElementById('loadtxt').textContent='Error: '+e.message;});

@@ -70,7 +70,7 @@ export function createNodeMeshes(nodes,world,scene){
     for(let k=0;k<nc;k++){const a=rr()*6.28,d=rr()*2.6,h=1.2+rr()*2.2+n.purity*0.5;
       crys.push(G.cone(0.35+rr()*0.25,h,5,0xffffff,{x:Math.cos(a)*d,y:1.1+h/2,z:Math.sin(a)*d,rx:(rr()-.5)*0.7,rz:(rr()-.5)*0.7,jit:0.12}));}
     const rock=new THREE.Mesh(G.merge(rocks),rockMat);
-    if(!crystalMats[n.type])crystalMats[n.type]=new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:n.type==='coal'?0.15:0.9,flatShading:true,roughness:0.35,metalness:n.type==='coal'?0.6:0});
+    if(!crystalMats[n.type])crystalMats[n.type]=new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:n.type==='coal'?0.1:0.45,flatShading:true,roughness:0.35,metalness:n.type==='coal'?0.6:0});
     const cr=new THREE.Mesh(G.merge(crys),crystalMats[n.type]);
     const g=new THREE.Group();g.add(rock,cr);g.position.set(n.x,n.y,n.z);g.rotation.y=rr()*6;
     rock.castShadow=cr.castShadow=true;
