@@ -11,7 +11,7 @@ import {Player} from './player.js';
 import {UI} from './ui.js';
 import {TouchControls,TOUCH_CSS} from './touch.js';
 import {sfx} from './audio.js';
-import {Q,level as QLEVEL,setting as QSET} from './quality.js';
+import {Q,level as QLEVEL,setting as QSET,resSetting as RSET,resFixed,targetPr,minPr} from './quality.js';
 import {WORLD,HALF,CELL,SEG,ITEMS,RECIPES,BUILDINGS,START_UNLOCKED,START_INV,MILESTONES,RESOURCES,PURITY,UPGRADES} from './data.js';
 
 const $=id=>document.getElementById(id);
@@ -41,7 +41,7 @@ function setupDevicePick(){
 setupDevicePick();
 async function init(){
   const renderer=new THREE.WebGLRenderer({canvas:$('gl'),antialias:Q.aa,powerPreference:'high-performance',stencil:false});
-  let pr=Math.min(devicePixelRatio,Q.pr);renderer.setPixelRatio(pr);renderer.setSize(innerWidth,innerHeight);
+  let pr=targetPr();renderer.setPixelRatio(pr);renderer.setSize(innerWidth,innerHeight);
   renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=0.95;renderer.shadowMap.enabled=Q.shadows;renderer.shadowMap.type=Q.shadowMap>1024?THREE.PCFSoftShadowMap:THREE.PCFShadowMap;
   const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,0.1,Q.far);
   addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();});
@@ -51,6 +51,7 @@ async function init(){
   setLoad(0.45,'Seeding resource cores…');await yieldUI();
   const nodes=placeNodes(world);
   const terrain=world.buildMesh();scene.add(terrain);
+  terrain.material.map.anisotropy=Math.min(16,renderer.capabilities.getMaxAnisotropy());
   const water=makeWater();scene.add(water.mesh);
   createNodeMeshes(nodes,world,scene);
   setLoad(0.55,'Growing forests…');await yieldUI();
@@ -105,6 +106,7 @@ async function init(){
       game.inv.c=s.inv;game.unlocked=new Set(s.unlocked);game.done=s.done;game.delivered=s.delivered||{};game.sunk=s.sunk||0;sky.time=s.time;
       player.pos.set(...s.pos);player.yaw=s.yaw;player.hp=s.hp||100;Object.assign(game.stats,s.stats||{});
       for(const id of s.disc||[])nodes[id]&&(nodes[id].discovered=true);
+      for(const id of game.done){const m=MILESTONES.find(x=>x.id===id);if(m)m.unlock.forEach(u=>game.unlocked.add(u));}
       factory.load(s.buildings||[]);game.upg=s.upg||{};game.applyUpgrades();
       return true;}catch(e){console.warn(e);return false;}
   };
@@ -122,6 +124,7 @@ async function init(){
   setInterval(()=>{if(game.running)game.save();},30000);addEventListener('beforeunload',()=>{if(game.running)game.save();});
   game.start=start;
   for(const id of ['qsel','qsel2']){const el=$(id);if(!el)continue;el.value=QSET;el.onchange=()=>{store.set('ironvale-q',el.value);if(game.running)game.save();location.reload();};}
+  for(const id of ['rsel','rsel2']){const el=$(id);if(!el)continue;el.value=RSET;el.onchange=()=>{store.set('ironvale-res',el.value);if(game.running)game.save();location.reload();};}
   const qi=document.getElementById('qinfo');if(qi)qi.textContent=`Graphics: ${QLEVEL.toUpperCase()}`+(QSET==='auto'?' (auto)':'');
 
   // ---- main loop
@@ -141,8 +144,9 @@ async function init(){
     nodes.forEach(n=>{if(n.discovered&&n.beam)n.beam.visible=true;});
     renderer.render(scene,camera);
     game.fps=1000/ema;game.res=pr;adT+=raw;
-    if(adT>2500){adT=0;let np=pr;if(ema>34)np=Math.max(Math.min(Q.minPr,devicePixelRatio),pr-0.1);else if(ema<20&&pr<Math.min(devicePixelRatio,Q.pr))np=Math.min(Math.min(devicePixelRatio,Q.pr),pr+0.1);
-      if(Math.abs(np-pr)>0.01){pr=np;renderer.setPixelRatio(pr);renderer.setSize(innerWidth,innerHeight);}}
+    // Auto resolution only steps down when the game is clearly struggling (under ~26 fps), and never far.
+    if(adT>2500){adT=0;if(!resFixed){let np=pr;if(ema>38)np=Math.max(minPr(),pr-0.1);else if(ema<20&&pr<targetPr())np=Math.min(targetPr(),pr+0.1);
+      if(Math.abs(np-pr)>0.01){pr=np;renderer.setPixelRatio(pr);renderer.setSize(innerWidth,innerHeight);}}}
   }
   loop();
 }

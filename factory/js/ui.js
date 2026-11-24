@@ -24,7 +24,8 @@ export class UI{
     Object.assign(this,ctx);this.game=game;this.mode='hand';this.type='belt';this.rot=0;this.panel=null;this.pauseShown=false;this.locked=false;this.force=false;
     this.keys=this.player.keys;this.mouse={l:false,r:false};this.mineT=0;this.swingCd=0;this.lastCell=null;this.lastBelt=null;this.hint='';this.miniT=0;this.cat='Logistics';
     this.mapImg=this.world.mapImage();this.canvas=$('gl');this.mini=$('minimap').getContext('2d');this.scanFx=null;this.discT=0;
-    this.mkScan();this.bind();
+    this.dpr=Math.min(2.5,window.devicePixelRatio||1);const mc=$('minimap');mc.width=mc.height=Math.round(180*this.dpr);
+    this.mkScan();this.mkRing();this.bind();
     this.player.onDamage=()=>{sfx.hurt();};
     this.player.onDeath=()=>{this.game.notify('You were killed. Respawning at the landing site…','bad');};
   }
@@ -36,6 +37,13 @@ export class UI{
   lockFailed(){if(this.noLock||this.mobile)return;this.noLock=true;this.force=true;this.notify('Mouse capture is unavailable here: hold the right mouse button and drag to look. P pauses.');}
   notify(msg,type=''){const d=document.createElement('div');d.className='notif '+type;d.textContent=msg;const n=$('notifs');n.appendChild(d);while(n.children.length>6)n.removeChild(n.firstChild);setTimeout(()=>{d.style.opacity=0;setTimeout(()=>d.remove(),500);},4500);}
   mkScan(){const m=new THREE.Mesh(new THREE.SphereGeometry(1,32,16),new THREE.MeshBasicMaterial({color:0x38c8ff,transparent:true,opacity:0.18,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending,fog:false}));m.visible=false;this.scene=this.camera.parent;this.scanMesh=m;}
+  mkRing(){
+    // Highlight ring drawn around the resource node a Miner would snap to.
+    const mat=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.85,side:THREE.DoubleSide,depthWrite:false,depthTest:false,fog:false});
+    const r=new THREE.Mesh(new THREE.RingGeometry(5.4,6.2,48),mat);r.rotation.x=-Math.PI/2;r.renderOrder=5;r.visible=false;
+    const r2=new THREE.Mesh(new THREE.RingGeometry(4.0,4.25,48),mat);r2.rotation.x=-Math.PI/2;r2.renderOrder=5;r.add(r2);r2.rotation.x=0;
+    this.ring=r;
+  }
   bind(){
     const g=this.game;
     document.addEventListener('pointerlockchange',()=>{this.locked=document.pointerLockElement===this.canvas;if(!this.locked&&g.running&&!this.panel&&!this.force){this.pauseShown=true;$('pause').classList.remove('hidden');}});
@@ -109,7 +117,7 @@ export class UI{
   }
   interact(){
     const t=this.target;if(!t)return;
-    if(t.b){const b=t.b;if(b.type==='depot')this.openPanel('mile',b);else if(b.def.machine||b.type==='storage'||b.type==='coal_gen'||b.type==='nuclear'||b.type==='miner'||b.type==='solar'||b.type==='splitter')this.openPanel('machine',b);}
+    if(t.b){const b=t.b;if(b.type==='depot')this.openPanel('mile',b);else if(b.def.machine||b.type==='storage'||b.type==='coal_gen'||b.type==='nuclear'||b.def.mine||b.type==='solar'||b.type==='splitter')this.openPanel('machine',b);}
   }
   scan(){
     if(this.scanCd>this.game.time)return;this.scanCd=this.game.time+6;sfx.scan();this.scanR=0;
@@ -142,12 +150,12 @@ export class UI{
   footprintAt(aim){
     const d=BUILDINGS[this.type],gx=(aim.x+HALF)/CELL,gz=(aim.z+HALF)/CELL;
     let [minCx,minCz]=this.factory.footprint(this.type,gx,gz);
-    if(this.type==='miner'){const n=this.factory.findNode(aim.x,aim.z);if(n){minCx=Math.round((n.x+HALF)/CELL)-d.w/2;minCz=Math.round((n.z+HALF)/CELL)-d.d/2;}}
+    if(d.mine){const n=this.factory.findNode(aim.x,aim.z);if(n){minCx=Math.round((n.x+HALF)/CELL)-d.w/2;minCz=Math.round((n.z+HALF)/CELL)-d.d/2;}}
     return [minCx,minCz,this.factory.canPlace(this.type,minCx,minCz,this.rot)];
   }
   // ---------- per-frame
   update(dt){
-    const p=this.player,g=this.game;this.swingCd-=dt;
+    const p=this.player,g=this.game;this.swingCd-=dt;let showRing=null;
     if(this.mode==='build'&&this.mouse.l&&this.active()&&this.type==='belt')this.placeAtAim(false);
     this.updateTarget();
     if(this.mode==='build'&&this.active()){
@@ -156,9 +164,16 @@ export class UI{
         const cx=(minCx+d.w/2)*CELL-HALF,cz=(minCz+d.d/2)*CELL-HALF,afford=this.game.inv.canAfford(d.cost)||c.replace;
         const y=this.world.cellH(Math.max(0,Math.min(SEG-1,minCx+Math.floor(d.w/2))),Math.max(0,Math.min(SEG-1,minCz+Math.floor(d.d/2))));
         this.factory.showGhost(this.type,new THREE.Vector3(cx,y+(this.type==='belt'?0.3:0),cz),this.rot,c.ok&&afford&&this.game.unlocked.has(this.type));
-        this.ghostMsg=!c.ok?c.reason:!afford?'Not enough materials':'';}
+        this.ghostMsg=!c.ok?c.reason:!afford?'Not enough materials':'';
+        if(d.mine){const n=c.node||this.factory.findNode(aim.x,aim.z);
+          if(n){showRing=n;const mult=PURITY[n.purity].mult,rate=60*mult*d.mine*this.factory.mods.miner;
+            if(c.ok&&afford)this.prompt=`<b>${RESOURCES[n.type].name} node (${PURITY[n.purity].name})</b> · ${d.name} makes <b>${rate.toFixed(0)}</b>/min · ${d.power} MW · <b>LMB</b> place`;}
+          else this.ghostMsg='Aim at a glowing resource node';}}
       else this.factory.hideGhost();
     }
+    if(showRing){const r=this.ring,n=showRing;if(!r.parent)this.scene.add(r);r.visible=true;r.position.set(n.x,n.y+0.4,n.z);
+      const col=RESOURCES[n.type].color;r.material.color.setHex(col);const s=1+Math.sin(this.game.time*4)*0.05;r.scale.set(s,s,1);}
+    else if(this.ring.visible)this.ring.visible=false;
     // hand mining: hold LMB or E on a node or rock
     const tg=this.target,want=this.mode==='hand'&&this.active()&&(this.keys['KeyE']||this.mouse.l)&&tg&&(tg.node||tg.rock)&&!p.dead;
     const iv=0.5*(1-0.15*this.lv('pick'));
@@ -189,13 +204,13 @@ export class UI{
       const b=this.factory.pick(o,d,this.mode==='delete'?30:12);
       if(b){this.target={b};
         if(this.mode==='delete')this.prompt=`<b>LMB</b> Deconstruct ${b.def.name}`;
-        else{const act=b.type==='depot'?'Milestones':b.type==='belt'?'':'Open';this.prompt=`${b.def.name}${b.status&&b.type!=='belt'?' — '+(STATUS[b.status]||b.status):''}${act&&b.type!=='splitter'?` · <b>E</b> ${act}`:''}${this.mobile?'':' · <b>G</b> Copy'}`;}
+        else{const act=b.type==='depot'?'Milestones':b.type==='belt'?'':'Open';this.prompt=`${b.def.name}${b.status&&b.type!=='belt'?' — '+(STATUS[b.status]||b.status):''}${b.def.mine&&b.node?` · ${RESOURCES[b.node.type].name} ${this.factory.rate(b).toFixed(0)}/min`:''}${act&&b.type!=='splitter'?` · <b>E</b> ${act}`:''}${this.mobile?'':' · <b>G</b> Copy'}`;}
         return;}
       if(this.mode==='hand'){
         let best=null,bd=8;for(const n of this.nodes){const dx=n.x-p.pos.x,dz=n.z-p.pos.z,dist=Math.hypot(dx,dz);if(dist>bd+2)continue;
           const to=new THREE.Vector3(dx,n.y+1-(p.pos.y+1.65),dz),len=to.length();to.divideScalar(len);if(to.dot(d)>0.8&&len<bd+2){bd=len;best=n;}}
         const mk=this.mobile?'⛏':'LMB';
-        if(best){this.target={node:best};this.prompt=best.occupied?`${nodeLabel(best)} — Miner installed`:`${nodeLabel(best)} · hold <b>${mk}</b> to mine`;return;}
+        if(best){this.target={node:best};this.prompt=best.occupied?`${nodeLabel(best)} — Miner installed`:`${nodeLabel(best)} · hold <b>${mk}</b> to mine · ${this.mobile?'BUILD':'<b>Q</b>'} a Miner for automation`;return;}
         const rk=this.veg.findMineable(o,d,5.5);
         if(rk){this.target={rock:rk};const left=rk.it.hp===undefined?'':` (${rk.it.hp}/${rk.it.maxHp})`;this.prompt=`${MINE[rk.type].name}${left} · hold <b>${mk}</b> to mine ore`;return;}
         const a=this.wild.nearestInFront(p.pos,{x:d.x,z:d.z},9);if(a&&a.g.visible){this.prompt=`${a.sp.n}${a.hp<a.sp.hp?` (${Math.ceil(a.hp)} HP)`:''}`;}
@@ -212,7 +227,7 @@ export class UI{
     $('pwbar').style.width=(s.supply>0||s.demand>0?Math.min(100,pc*100):0)+'%';
     $('pwtxt').innerHTML=`Power: <b style="color:${s.supply<s.demand?'var(--bad)':'var(--acc2)'}">${s.supply.toFixed(0)}</b> / ${s.demand.toFixed(0)} MW`;
     const h=this.sky.hour,hh=Math.floor(h),mm=Math.floor((h-hh)*60);
-    $('clock').textContent=`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} · ${hh>=6&&hh<18?'Day':'Night'}${g.fps?' · '+g.fps.toFixed(0)+' fps':''}`;
+    $('clock').textContent=`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} · ${hh>=6&&hh<18?'Day':'Night'}${g.fps?' · '+g.fps.toFixed(0)+' fps':''}${g.res?' · '+g.res.toFixed(2)+'x res':''}`;
     const m=g.curMilestone();
     $('objective').innerHTML=m?`<h4>Milestone ${g.done.length+1}/${MILESTONES.length}</h4><div><b>${m.name}</b></div>`+Object.entries(m.req).map(([k,n])=>{const d=g.delivered[k]||0;return `<div class="req ${d>=n?'ok':''}"><span>${chip(k)}${ITEMS[k].name}</span><span>${d}/${n}</span></div>`;}).join('')+`<div class="small">Deliver via Depot (J)</div>`:`<h4>All milestones complete</h4><div>The Beacon is lit. Keep building!</div>`;
     const hint={hand:'<b>Hold LMB</b> Mine rocks / swing · <b>E</b> Use · <b>Q</b> Build · <b>X</b> Deconstruct · <b>V</b> Scan · <b>Tab</b> Inventory',build:`<b>${BUILDINGS[this.type].name}</b> · <b>LMB</b> Place · <b>R</b>/<b>Wheel</b> Rotate · <b>RMB</b>/<b>Esc</b> Cancel`+(this.type==='belt'?' · drag to lay lines':''),delete:'<b>Deconstruct</b> · <b>LMB</b> Remove building (full refund) · <b>RMB</b> Cancel'};
@@ -222,10 +237,11 @@ export class UI{
   }
   drawMini(){
     const c=this.mini,S=180,p=this.player,R=260,scale=S/(2*R)*(WORLDSCALE);
+    c.setTransform(this.dpr,0,0,this.dpr,0,0);c.imageSmoothingQuality='high';
     c.save();c.clearRect(0,0,S,S);c.beginPath();c.arc(S/2,S/2,S/2,0,7);c.clip();c.fillStyle='#0a0e14';c.fillRect(0,0,S,S);
     c.translate(S/2,S/2);c.rotate(p.yaw);// north-up rotates with heading
     const px=(p.pos.x+HALF)/(HALF*2)*this.mapImg.width,pz=(p.pos.z+HALF)/(HALF*2)*this.mapImg.height,k=S/(2*R)*(HALF*2/this.mapImg.width);
-    c.imageSmoothingEnabled=false;c.drawImage(this.mapImg,-px*k,-pz*k,this.mapImg.width*k,this.mapImg.height*k);
+    c.imageSmoothingEnabled=true;c.drawImage(this.mapImg,-px*k,-pz*k,this.mapImg.width*k,this.mapImg.height*k);
     const to=(x,z)=>[(x-p.pos.x)*S/(2*R),(z-p.pos.z)*S/(2*R)];
     for(const b of this.factory.list){if(b.type==='belt')continue;const [x,y]=to(b.x,b.z);if(Math.abs(x)>S/2||Math.abs(y)>S/2)continue;c.fillStyle='#ffb02e';c.fillRect(x-2,y-2,4,4);}
     for(const n of this.nodes){if(!n.discovered)continue;const [x,y]=to(n.x,n.z);if(Math.hypot(x,y)>S/2-3)continue;c.fillStyle=hex(RESOURCES[n.type].color);c.beginPath();c.arc(x,y,4,0,7);c.fill();c.strokeStyle='#000';c.lineWidth=1;c.stroke();}
@@ -289,7 +305,12 @@ export class UI{
         h+=`<div class="small">Output buffer: ${Object.entries(b.out).filter(([k,n])=>n>0).map(([k,n])=>n+'× '+ITEMS[k].name).join(', ')||'empty'}</div>`;}
       h+=`<br><div class="small">Items arrive from belts pointing into the machine. Output leaves from the front (arrow side).</div>`;
     }
-    else if(b.type==='miner'){const n=b.node;h+=n?`<div>Mining <b>${RESOURCES[n.type].name}</b> (${PURITY[n.purity].name}) — ${(60*PURITY[n.purity].mult).toFixed(0)} items/min</div>`:'<div>Not on a node</div>';}
+    else if(b.def.mine){const n=b.node,f=this.factory,full=Object.values(b.out).reduce((a,c)=>a+c,0);
+      if(!n)h+='<div>Not on a node</div>';
+      else{const base=60*PURITY[n.purity].mult*b.def.mine,rate=f.rate(b),eff=b.status==='working'?f.eff:0;
+        h+=`<div class="rec sel"><div><b>${chip(n.type)}${RESOURCES[n.type].name} node</b> · ${PURITY[n.purity].name}<div class="in">${b.def.name}: ${base.toFixed(0)}/min base${f.mods.miner>1?` x${f.mods.miner.toFixed(2)} overclock`:''}</div></div><div style="text-align:right"><b style="font-size:20px">${(rate*eff).toFixed(0)}</b>/min<div class="in">of ${rate.toFixed(0)} possible</div></div></div>
+        <div class="prog"><i style="width:${Math.min(100,eff*100)}%;background:${eff<1?'var(--bad)':'var(--good)'}"></i></div>
+        <div class="small">Power: ${(b.def.power*f.mods.power).toFixed(1)} MW · Supply ${f.supply.toFixed(0)} / Demand ${f.demand.toFixed(0)} MW${eff<1&&b.status==='working'?' (running slow, add power)':''}<br>Output buffer: ${full}/5${b.status==='blocked'?' (belt is full or missing)':''}<br>Items leave from the front (arrow side). A belt belongs there. Each Mk level up doubles output.</div>`;}}
     else if(b.type==='storage'){const ents=Object.entries(b.store).filter(([k,n])=>n>0);h+=ents.length?`<div class="inv">${ents.map(([k,n])=>`<div class="l"><span>${chip(k)}${ITEMS[k].name}</span><span><b>${n}</b> <button data-act="take|${k}">Take</button></span></div>`).join('')}</div><div class="row" style="justify-content:flex-start"><button data-act="takeall">Take All</button></div>`:'<div class="small">Empty. Belts pointing into the crate fill it (max 500).</div>';}
     else if(b.type==='coal_gen'||b.type==='nuclear')h+=`<div>Fuel: ${b.fuel} · Burning: ${b.burn>0?Math.ceil(b.burn)+'s':'no'}</div><div class="small">Feed ${b.type==='coal_gen'?'Coal':'Uranium Fuel Rods'} by belt.</div>`;
     else if(b.type==='solar')h+=`<div>Output scales with sunlight (currently ${(this.sky.daylight*100).toFixed(0)}%).</div>`;
@@ -314,10 +335,10 @@ export class UI{
       h+='</div>';}
     return h+(g.sunk?`<div class="small">Items sunk into the depot: ${g.sunk}</div>`:'');
   }
-  mapHTML(){return `<h3 style="font-size:20px">Map</h3><canvas id="mapc" width="900" height="900"></canvas><div class="small">Scan (V) to reveal resource nodes. ◆ nodes · ■ buildings · ▲ you</div>`;}
+  mapHTML(){return `<h3 style="font-size:20px">Map</h3><canvas id="mapc" width="1600" height="1600"></canvas><div class="small">Scan (V) to reveal resource nodes. ◆ nodes · ■ buildings · ▲ you</div>`;}
   drawMap(){
-    const cv=$('mapc');if(!cv)return;const c=cv.getContext('2d'),S=cv.width,k=S/(HALF*2),p=this.player;
-    c.imageSmoothingEnabled=true;c.drawImage(this.mapImg,0,0,S,S);
+    const cv=$('mapc');if(!cv)return;const c=cv.getContext('2d'),S=900,k=S/(HALF*2),p=this.player;
+    c.setTransform(cv.width/S,0,0,cv.width/S,0,0);c.imageSmoothingEnabled=true;c.imageSmoothingQuality='high';c.drawImage(this.mapImg,0,0,S,S);
     const X=x=>(x+HALF)*k;
     for(const b of this.factory.list){c.fillStyle=b.type==='belt'?'#ffd98a':'#ffb02e';const s=b.type==='belt'?2:5;c.fillRect(X(b.x)-s/2,X(b.z)-s/2,s,s);}
     c.font='11px sans-serif';c.textAlign='center';
@@ -328,7 +349,7 @@ export class UI{
   helpHTML(){
     const rows=[['W A S D','Move'],['Shift','Sprint'],['Space','Jump / swim up'],['Mouse','Look'],['LMB','Swing pickaxe / place / deconstruct'],['RMB / Esc','Cancel tool'],['LMB (hold)','Mine resource nodes and loose rocks, boulders, spires (biome ores)'],['E','Use machines · hold to mine'],['Q','Build menu'],['R / Wheel','Rotate building'],['X','Deconstruct mode'],['G','Copy the building you look at'],['Tab / I','Inventory &amp; hand crafting'],['V','Resource scanner (reveals nodes)'],['M','Map'],['J','Milestones'],['U','Upgrades'],['F','Eat raw meat'],['O','Toggle shadows (Medium/High graphics)']];
     return `<h3 style="font-size:20px">Controls &amp; Guide</h3><table class="k">${rows.map(r=>`<tr><td><kbd>${r[0]}</kbd></td><td>${r[1]}</td></tr>`).join('')}</table><br>
-    <h3>How to build a factory</h3><div class="small" style="font-size:13px;line-height:1.6">1. Press <b>V</b> to scan for resource nodes — look for glowing crystals (colour = resource, more crystals = purer).<br>2. Build a <b>Miner</b> on a node and a <b>Solar Array</b> for power (solar is weaker at dawn/dusk and dead at night — Coal Generators fix that).<br>3. Lay <b>Conveyor Belts</b> from the miner's front (arrow side). Hold LMB and drag to paint belt lines. Belts accept items from behind and from the sides.<br>4. Feed ore into a <b>Smelter</b>, then ingots into a <b>Constructor</b> (choose the recipe with E). Chain machines with belts.<br>5. End your line at a <b>Delivery Depot</b> to complete milestones and unlock new machines.<br>6. Beware the wilds: wolves hunt in packs (more at night), bears and boars fight back, scorpions lurk in the desert.</div>`;
+    <h3>How to build a factory</h3><div class="small" style="font-size:13px;line-height:1.6">1. Press <b>V</b> to scan for resource nodes — look for glowing crystals (colour = resource, more crystals = purer).<br>2. Press <b>Q</b> and pick a <b>Miner</b>: a ring marks the node it will snap to and the prompt shows the output per minute (Impure 0.5x, Normal 1x, Pure 2x). Add a <b>Solar Array</b> for power (weaker at dawn/dusk, dead at night; Coal Generators fix that). Miner Mk.2 and Mk.3 unlock with milestones and make 2x and 4x as much.<br>3. Lay <b>Conveyor Belts</b> from the miner's front (arrow side). Hold LMB and drag to paint belt lines. Belts accept items from behind and from the sides.<br>4. Feed ore into a <b>Smelter</b>, then ingots into a <b>Constructor</b> (choose the recipe with E). Chain machines with belts.<br>5. End your line at a <b>Delivery Depot</b> to complete milestones and unlock new machines.<br>6. Beware the wilds: wolves hunt in packs (more at night), bears and boars fight back, scorpions lurk in the desert.</div>`;
   }
 }
 const WORLDSCALE=1;

@@ -73,7 +73,9 @@ export const BUILDINGS={
   splitter:{name:'Splitter',w:1,d:1,cat:'Logistics',cost:{iron_plate:3,wire:4},power:0,unlock:'splitter',desc:'Splits input across front, left and right outputs.'},
   storage:{name:'Storage Crate',w:1,d:1,cat:'Logistics',cost:{iron_plate:4,iron_rod:4},power:0,desc:'Stores up to 500 items. Press E to take items.'},
   depot:{name:'Delivery Depot',w:3,d:3,cat:'Logistics',cost:{iron_plate:10,wire:10,concrete:10},power:0,desc:'Deliver items here to complete milestones.'},
-  miner:{name:'Miner',w:2,d:2,cat:'Production',cost:{iron_plate:8,iron_rod:4,concrete:4},power:5,desc:'Place on a resource node. 30/60/120 per min by purity.'},
+  miner:{name:'Miner Mk.1',w:2,d:2,cat:'Production',cost:{iron_plate:8,iron_rod:4,concrete:4},power:5,mine:1,desc:'Place on a resource node. 30 / 60 / 120 per min on Impure / Normal / Pure.'},
+  miner2:{name:'Miner Mk.2',w:2,d:2,cat:'Production',cost:{iron_plate:20,iron_rod:12,concrete:12,reinforced_plate:3},power:12,mine:2,unlock:'miner2',desc:'Twice the output of a Mk.1: up to 240 per min on a Pure node.'},
+  miner3:{name:'Miner Mk.3',w:2,d:2,cat:'Production',cost:{steel_beam:8,concrete:20,reinforced_plate:6,circuit_board:4},power:30,mine:4,unlock:'miner3',desc:'Four times a Mk.1: up to 480 per min on a Pure node. Split or upgrade belts to carry it.'},
   smelter:{name:'Smelter',w:2,d:2,cat:'Production',cost:{iron_rod:6,wire:6},power:4,machine:'smelter',desc:'Smelts ores into ingots.'},
   constructor:{name:'Constructor',w:2,d:2,cat:'Production',cost:{iron_plate:6,iron_rod:6,wire:8},power:4,machine:'constructor',desc:'Makes parts from one input.'},
   assembler:{name:'Assembler',w:3,d:3,cat:'Production',cost:{iron_plate:20,iron_rod:10,cable:10,concrete:10},power:15,machine:'assembler',unlock:'assembler',desc:'Combines two inputs into advanced parts.'},
@@ -86,9 +88,9 @@ export const START_UNLOCKED=['belt','storage','depot','miner','smelter','constru
 
 export const MILESTONES=[
   {id:'m1',name:'Spark of Industry',req:{iron_plate:30,wire:20},unlock:['splitter','coal_gen'],text:'Unlocks Splitter and Coal Generator.'},
-  {id:'m2',name:'Foundations',req:{concrete:40,iron_rod:30,screw:60},unlock:['assembler'],text:'Unlocks Assembler.'},
+  {id:'m2',name:'Foundations',req:{concrete:40,iron_rod:30,screw:60},unlock:['assembler','miner2'],text:'Unlocks Assembler and Miner Mk.2.'},
   {id:'m3',name:'Steel Age',req:{reinforced_plate:8,cable:20},unlock:['foundry'],text:'Unlocks Foundry.'},
-  {id:'m4',name:'Advanced Alloys',req:{steel_beam:20,circuit_board:10,bronze_plate:15},unlock:['tier3'],text:'Unlocks level 3 of most upgrades.'},
+  {id:'m4',name:'Advanced Alloys',req:{steel_beam:20,circuit_board:10,bronze_plate:15},unlock:['tier3','miner3'],text:'Unlocks Miner Mk.3 and level 3 of most upgrades.'},
   {id:'m5',name:'Atomic Dawn',req:{computer:5,battery:10,modular_frame:5},unlock:['nuclear'],text:'Unlocks Nuclear Reactor.'},
   {id:'m6',name:'The Ironvale Beacon',req:{computer:15,fuel_rod:5,titanium_frame:10,power_core:10,battery:15},unlock:['beacon'],text:'Light the beacon. Final milestone.'},
 ];

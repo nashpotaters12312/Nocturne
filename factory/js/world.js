@@ -156,9 +156,9 @@ export class World{
     this.geo.attributes.position.needsUpdate=true;this.geo.attributes.normal.needsUpdate=true;this.geo.attributes.color.needsUpdate=true;
   }
   detailTex(){
-    const S=256,c=document.createElement('canvas');c.width=c.height=S;const x=c.getContext('2d');
+    const S=1024,K=S/256,c=document.createElement('canvas');c.width=c.height=S;const x=c.getContext('2d');
     x.fillStyle='rgb(236,236,236)';x.fillRect(0,0,S,S);
-    const sp=(n,rmin,rmax,lo,hi,a)=>{for(let i=0;i<n;i++){const v=lo+Math.random()*(hi-lo)|0,r=rmin+Math.random()*(rmax-rmin),px=Math.random()*S,py=Math.random()*S;x.fillStyle=`rgba(${v},${v},${v},${a})`;
+    const sp=(n,rmin,rmax,lo,hi,a)=>{n*=K;for(let i=0;i<n;i++){const v=lo+Math.random()*(hi-lo)|0,r=(rmin+Math.random()*(rmax-rmin))*K,px=Math.random()*S,py=Math.random()*S;x.fillStyle=`rgba(${v},${v},${v},${a})`;
       for(const [ox,oy] of [[0,0],[S,0],[-S,0],[0,S],[0,-S]]){x.beginPath();x.arc(px+ox,py+oy,r,0,7);x.fill();}}};
     sp(60,10,26,200,255,0.18);sp(900,1,3,150,255,0.35);sp(2500,0.4,1.2,120,255,0.5);
     const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;return t;

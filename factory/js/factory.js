@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {BUILDINGS,RECIPES,ITEMS,PURITY,DIRS,CELL,HALF,SEG} from './data.js';
 import {makeModel,makeGhost,setGhostValid,BeltRenderer,lightMats,HEIGHT} from './models.js';
+import {Dust} from './dust.js';
 
 const GAP=0.5,BELT_V=1.0;
 const RMAP={};for(const r of RECIPES)RMAP[r.id]=r;
@@ -12,7 +13,7 @@ export class Factory{
     this.world=world;this.scene=scene;this.veg=veg;this.game=game;this.cells=new Map();this.list=[];this.belts=[];this.nid=1;
     this.group=new THREE.Group();scene.add(this.group);this.br=new BeltRenderer(scene);
     this.mods={belt:1,miner:1,mach:1,power:1,solar:1};this.supply=0;this.demand=0;this.eff=1;this.acc=0;this.time=0;this.nodes=[];
-    this.ghosts={};this.ghost=null;this.ghostType=null;
+    this.ghosts={};this.ghost=null;this.ghostType=null;this.dust=new Dust(scene);
   }
   key(cx,cz){return cz*SEG+cx;}
   at(cx,cz){return cx<0||cz<0||cx>=SEG||cz>=SEG?null:this.cells.get(cz*SEG+cx);}
@@ -20,7 +21,8 @@ export class Factory{
   center(b){return [(b.minCx+b.w/2)*CELL-HALF,(b.minCz+b.d/2)*CELL-HALF];}
   // ---- placement
   footprint(type,gx,gz){const d=BUILDINGS[type];return [Math.round(gx-d.w/2),Math.round(gz-d.d/2)];}
-  findNode(x,z){let best=null,bd=7;for(const n of this.nodes){const d=Math.hypot(n.x-x,n.z-z);if(d<bd){bd=d;best=n;}}return best;}
+  rate(b){return b.node?60*PURITY[b.node.purity].mult*(b.def.mine||1)*this.mods.miner:0;}
+  findNode(x,z){let best=null,bd=11;for(const n of this.nodes){const d=Math.hypot(n.x-x,n.z-z);if(d<bd){bd=d;best=n;}}return best;}
   canPlace(type,minCx,minCz,rot){
     const d=BUILDINGS[type],w=this.world;
     if(minCx<1||minCz<1||minCx+d.w>=SEG-1||minCz+d.d>=SEG-1)return {ok:false,reason:'Out of bounds'};
@@ -30,7 +32,7 @@ export class Factory{
     if(mx-mn>(type==='belt'?4:5.5))return {ok:false,reason:'Terrain too steep'};
     for(let j=minCz;j<minCz+d.d;j++)for(let i=minCx;i<minCx+d.w;i++){const o=this.at(i,j);if(o){if(type==='belt'&&o.type==='belt'&&d.w===1)replace=o;else return {ok:false,reason:'Space is occupied'};}}
     let node=null;
-    if(type==='miner'){const [cx,cz]=[(minCx+d.w/2)*CELL-HALF,(minCz+d.d/2)*CELL-HALF];node=this.findNode(cx,cz);
+    if(d.mine){const [cx,cz]=[(minCx+d.w/2)*CELL-HALF,(minCz+d.d/2)*CELL-HALF];node=this.findNode(cx,cz);
       if(!node)return {ok:false,reason:'Miner must be placed on a resource node'};if(node.occupied)return {ok:false,reason:'Node already has a miner'};
       if(Math.hypot(node.x-cx,node.z-cz)>0.5)return {ok:false,reason:'Align with node',snap:node};}
     return {ok:true,node,replace};
@@ -150,12 +152,12 @@ export class Factory{
     for(const b of this.list){
       const def=b.def;
       switch(b.type){
-        case 'miner':{
+        case 'miner':case 'miner2':case 'miner3':{
           if(!b.node){b.status='nonode';break;}
-          const mult=PURITY[b.node.purity].mult;
+          const mult=PURITY[b.node.purity].mult*def.mine;
           const tot=Object.values(b.out).reduce((a,c)=>a+c,0);
-          if(tot>=5){b.status='blocked';}else{demand+=def.power*M.power;if(eff<=0.01)b.status='nopower';else{b.status='working';b.prog+=dt*eff*mult*M.miner;if(b.prog>=1){b.prog-=1;b.out[b.node.type]=(b.out[b.node.type]||0)+1;this.game.stats.mined++;}}}
-          const ty=b.node.type;if(b.out[ty]>0&&this.push(b,ty))b.out[ty]--;
+          if(tot>=5){b.status='blocked';}else{demand+=def.power*M.power;if(eff<=0.01)b.status='nopower';else{b.status='working';b.prog+=dt*eff*mult*M.miner;while(b.prog>=1){b.prog-=1;b.out[b.node.type]=(b.out[b.node.type]||0)+1;this.game.stats.mined++;}}}
+          const ty=b.node.type;for(let k=0;k<2&&b.out[ty]>0;k++){if(this.push(b,ty))b.out[ty]--;else break;}
           break;}
         case 'smelter':case 'constructor':case 'assembler':case 'foundry':{
           const r=b.recipe;
@@ -201,7 +203,7 @@ export class Factory{
         this.br.item(it.type,px,py,pz,yaw);
       }
     }
-    this.br.endItems();
+    this.br.endItems();this.dust.update(dt);
     for(const b of this.list){
       if(b.type==='belt'||!b.group)continue;
       const d2=(b.x-playerPos.x)**2+(b.z-playerPos.z)**2;
@@ -209,6 +211,8 @@ export class Factory{
       const ud=b.group.userData,working=b.status==='working';
       b.anim+=dt*(working?1:0.15);
       for(const [m,sp,ax] of ud.spin){if(ax==='z')m.rotation.z+=dt*sp*(working?1:0.3);else m.rotation.y+=dt*sp*(working?1:0);}
+      if(ud.drill)ud.drill.position.y=ud.drill.userData.y0+Math.sin(b.anim*9)*(working?0.3:0);
+      if(working&&b.node&&d2<140*140&&Math.random()<dt*14)this.dust.emit(b.x+(Math.random()-0.5)*5,b.y+0.8,b.z+(Math.random()-0.5)*5,b.node.type);
       if(ud.arm)ud.arm.position.z=Math.sin(b.anim*4)*(working?1.6:0);
       if(ud.arms)ud.arms.forEach((a,i)=>{a.position.x=Math.sin(b.anim*3+i*2)*(working?1.4:0);});
       if(ud.panel){ud.panel.rotation.set(0,0,0);ud.panel.lookAt(b.x+sunDir.x*50,b.y+3+Math.max(sunDir.y,0.15)*50,b.z+sunDir.z*50);ud.panel.rotateX(Math.PI/2);}
