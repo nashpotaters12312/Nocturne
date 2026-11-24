@@ -28,6 +28,9 @@ python3 -m http.server 8123
 - **Progression** – deliver items to a Delivery Depot to finish 6 milestones that unlock machines, boots and the final Beacon.
 - Day/night cycle, weather-less sky with clouds and stars, auto-save (localStorage).
 
+## Mining
+Hold LMB (⛏ on touch) on a resource node for its ore, or on any loose rock, boulder, rock spire or ice formation. Rocks crack and shrink with each strike, then break with a bonus drop. What they drop depends on the biome (e.g. sulfur and ruby in the desert, quartz, titanium and uranium in the snow). The Prospector Pickaxe upgrade mines faster and yields more.
+
 ## Phone and tablet
 The title screen asks whether you're on a computer or a phone/tablet. Touch mode gives a move stick (left), drag-to-look, action buttons (swing/place, E, jump, run, rotate, cancel, deconstruct, eat) and a menu row (build, bag, upgrades, goals, map, scan, pause). It uses Low graphics and asks for fullscreen landscape.
 

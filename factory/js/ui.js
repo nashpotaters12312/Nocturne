@@ -6,6 +6,12 @@ import {nodeLabel} from './nodes.js';
 import {recipesFor,RMAP} from './factory.js';
 import {sfx} from './audio.js';
 import {HEIGHT} from './models.js';
+import {MINE} from './vegetation.js';
+// What loose rocks drop, by biome (weights).
+const DROPS={0:{limestone:6,copper_ore:2,tin_ore:2},1:{limestone:5,iron_ore:3,copper_ore:2,coal:1,tin_ore:1},2:{limestone:4,iron_ore:3,coal:2,copper_ore:2},
+  3:{limestone:3,copper_ore:3,bauxite:2,coal:2,tin_ore:1},4:{limestone:3,sulfur:3,iron_ore:2,caterium_ore:2,ruby_ore:1},5:{iron_ore:3,limestone:2,coal:2,caterium_ore:2,quartz:2,titanium_ore:1},
+  6:{quartz:4,iron_ore:2,limestone:2,titanium_ore:2,uranium:1}};
+const roll=t=>{let s=0;for(const k in t)s+=t[k];let r=Math.random()*s;for(const k in t){r-=t[k];if(r<=0)return k;}return Object.keys(t)[0];};
 
 const $=id=>document.getElementById(id);
 const hex=c=>'#'+c.toString(16).padStart(6,'0');
@@ -90,7 +96,7 @@ export class UI{
     if(this.player.dead)return;
     if(this.mode==='build'){this.placeAtAim(true);}
     else if(this.mode==='delete'){const t=this.target;if(t&&t.b){this.factory.remove(t.b);sfx.del();this.game.notify('Deconstructed '+t.b.def.name+' (refunded)');}}
-    else this.swing();
+    else if(!(this.target&&(this.target.node||this.target.rock)))this.swing();
   }
   swing(){
     if(this.swingCd>0)return;this.swingCd=0.5;this.player.swing=1;sfx.swing();
@@ -153,16 +159,28 @@ export class UI{
         this.ghostMsg=!c.ok?c.reason:!afford?'Not enough materials':'';}
       else this.factory.hideGhost();
     }
-    // hand mining
-    let mining=false;
-    if(this.mode==='hand'&&this.active()&&this.keys['KeyE']&&this.target&&this.target.node&&!p.dead){
-      mining=true;this.mineT+=dt;if(this.mineT>0.55*(1-0.18*this.lv('pick'))){this.mineT=0;const n=this.target.node;g.inv.add(n.type,1);sfx.mine();g.stats.handMined=(g.stats.handMined||0)+1;}
-    }else this.mineT=0;
-    p.mining=mining?1:0;
+    // hand mining: hold LMB or E on a node or rock
+    const tg=this.target,want=this.mode==='hand'&&this.active()&&(this.keys['KeyE']||this.mouse.l)&&tg&&(tg.node||tg.rock)&&!p.dead;
+    const iv=0.5*(1-0.15*this.lv('pick'));
+    if(want){this.mineT-=dt;if(this.mineT<=0){this.mineT=iv;this.strike(tg);}}else this.mineT=0;
+    p.mining=0;const ring=$('ring');ring.style.display=want?'block':'none';if(want)ring.style.setProperty('--p',(1-this.mineT/iv)*100+'%');
     if(this.scanMesh.visible){this.scanR+=dt*this.scanMax*0.9;this.scanMesh.scale.setScalar(Math.max(1,this.scanR));this.scanMesh.material.opacity=0.2*(1-this.scanR/this.scanMax);this.scanMesh.position.copy(p.pos);if(this.scanR>this.scanMax)this.scanMesh.visible=false;}
     this.discT-=dt;if(this.discT<0){this.discT=1;for(const n of this.nodes)if(!n.discovered&&Math.hypot(n.x-p.pos.x,n.z-p.pos.z)<90)n.discovered=true;}
     // hud
     this.hud(dt);
+  }
+  strike(tg){
+    const g=this.game,p=this.player,pk=this.lv('pick');p.swing=1;sfx.mine();g.stats.handMined=(g.stats.handMined||0)+1;
+    if(tg.node){const n=tg.node,q=1+(pk>=2?1:0)+(n.purity===2&&Math.random()<0.5?1:0)-(n.purity===0&&Math.random()<0.4?1:0);
+      const pos=new THREE.Vector3(n.x,n.y+1.6,n.z).lerp(p.eye(),0.25);this.fx.burst(pos,RESOURCES[n.type].color,8);
+      if(q>0){g.inv.add(n.type,q);this.fx.popup(`+${q} ${ITEMS[n.type].name}`,hex(RESOURCES[n.type].color));}return;}
+    const r=tg.rock,b=this.world.biomeAt(r.it.x,r.it.z),item=r.type==='ice'?(Math.random()<0.7?'quartz':'titanium_ore'):roll(DROPS[b]||DROPS[1]);
+    const q=1+(pk>=3?1:0)+(r.type==='spire'&&Math.random()<0.5?1:0);
+    const pos=p.eye().addScaledVector(p.forward(),Math.max(0.6,r.t-r.R*0.6));
+    this.fx.burst(pos,0x8a8680,7);this.fx.burst(pos,ITEMS[item].color,4);
+    g.inv.add(item,q);this.fx.popup(`+${q} ${ITEMS[item].name}`,hex(ITEMS[item].color));
+    if(this.veg.hitRock(r)){const bonus=r.type==='boulder'?2+Math.floor(Math.random()*3):r.type==='spire'?4:0;
+      this.fx.burst(pos,0x8a8680,22,7);sfx.hit();if(bonus){const b2=roll(DROPS[b]||DROPS[1]);g.inv.add(b2,bonus);setTimeout(()=>this.fx.popup(`${MINE[r.type].name} broken: +${bonus} ${ITEMS[b2].name}`,'#ffb02e'),250);}this.target=null;}
   }
   updateTarget(){
     this.target=null;this.prompt='';if(!this.active()&&!this.force)return;
@@ -176,7 +194,10 @@ export class UI{
       if(this.mode==='hand'){
         let best=null,bd=8;for(const n of this.nodes){const dx=n.x-p.pos.x,dz=n.z-p.pos.z,dist=Math.hypot(dx,dz);if(dist>bd+2)continue;
           const to=new THREE.Vector3(dx,n.y+1-(p.pos.y+1.65),dz),len=to.length();to.divideScalar(len);if(to.dot(d)>0.8&&len<bd+2){bd=len;best=n;}}
-        if(best){this.target={node:best};this.prompt=best.occupied?`${nodeLabel(best)} — Miner installed`:`${nodeLabel(best)} · hold <b>E</b> to mine`;return;}
+        const mk=this.mobile?'⛏':'LMB';
+        if(best){this.target={node:best};this.prompt=best.occupied?`${nodeLabel(best)} — Miner installed`:`${nodeLabel(best)} · hold <b>${mk}</b> to mine`;return;}
+        const rk=this.veg.findMineable(o,d,5.5);
+        if(rk){this.target={rock:rk};const left=rk.it.hp===undefined?'':` (${rk.it.hp}/${rk.it.maxHp})`;this.prompt=`${MINE[rk.type].name}${left} · hold <b>${mk}</b> to mine ore`;return;}
         const a=this.wild.nearestInFront(p.pos,{x:d.x,z:d.z},9);if(a&&a.g.visible){this.prompt=`${a.sp.n}${a.hp<a.sp.hp?` (${Math.ceil(a.hp)} HP)`:''}`;}
       }
     }
@@ -194,8 +215,8 @@ export class UI{
     $('clock').textContent=`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} · ${hh>=6&&hh<18?'Day':'Night'}${g.fps?' · '+g.fps.toFixed(0)+' fps':''}`;
     const m=g.curMilestone();
     $('objective').innerHTML=m?`<h4>Milestone ${g.done.length+1}/${MILESTONES.length}</h4><div><b>${m.name}</b></div>`+Object.entries(m.req).map(([k,n])=>{const d=g.delivered[k]||0;return `<div class="req ${d>=n?'ok':''}"><span>${chip(k)}${ITEMS[k].name}</span><span>${d}/${n}</span></div>`;}).join('')+`<div class="small">Deliver via Depot (J)</div>`:`<h4>All milestones complete</h4><div>The Beacon is lit. Keep building!</div>`;
-    const hint={hand:'<b>LMB</b> Swing · <b>E</b> Mine/Use · <b>Q</b> Build · <b>X</b> Deconstruct · <b>V</b> Scan · <b>Tab</b> Inventory',build:`<b>${BUILDINGS[this.type].name}</b> · <b>LMB</b> Place · <b>R</b>/<b>Wheel</b> Rotate · <b>RMB</b>/<b>Esc</b> Cancel`+(this.type==='belt'?' · drag to lay lines':''),delete:'<b>Deconstruct</b> · <b>LMB</b> Remove building (full refund) · <b>RMB</b> Cancel'};
-    $('toolhint').innerHTML=this.mobile?(this.mode==='build'?`<b>${BUILDINGS[this.type].name}</b> · ✚ place · ⟳ rotate · ✕ cancel`+(this.type==='belt'?' · hold ✚ and walk to lay belts':''):this.mode==='delete'?'Aim and tap ✖ to remove · ✕ cancel':'Left: move · Drag: look · ⛏ swing · E mine/use'):hint[this.mode];
+    const hint={hand:'<b>Hold LMB</b> Mine rocks / swing · <b>E</b> Use · <b>Q</b> Build · <b>X</b> Deconstruct · <b>V</b> Scan · <b>Tab</b> Inventory',build:`<b>${BUILDINGS[this.type].name}</b> · <b>LMB</b> Place · <b>R</b>/<b>Wheel</b> Rotate · <b>RMB</b>/<b>Esc</b> Cancel`+(this.type==='belt'?' · drag to lay lines':''),delete:'<b>Deconstruct</b> · <b>LMB</b> Remove building (full refund) · <b>RMB</b> Cancel'};
+    $('toolhint').innerHTML=this.mobile?(this.mode==='build'?`<b>${BUILDINGS[this.type].name}</b> · ✚ place · ⟳ rotate · ✕ cancel`+(this.type==='belt'?' · hold ✚ and walk to lay belts':''):this.mode==='delete'?'Aim and tap ✖ to remove · ✕ cancel':'Left: move · Drag: look · hold ⛏ on rocks to mine · E use'):hint[this.mode];
     this.miniT-=dt;if(this.miniT<=0){this.miniT=0.1;this.drawMini();this.drawCompass();
       const b=this.world.biomeAt(p.pos.x,p.pos.z);$('biome').textContent=`${BIOME_NAMES[b]} · alt ${p.pos.y.toFixed(0)}m · (${p.pos.x.toFixed(0)}, ${p.pos.z.toFixed(0)})`;}
   }
@@ -305,7 +326,7 @@ export class UI{
     c.save();c.translate(X(p.pos.x),X(p.pos.z));c.rotate(-p.yaw+Math.PI);c.fillStyle='#fff';c.strokeStyle='#000';c.lineWidth=2;c.beginPath();c.moveTo(0,-10);c.lineTo(7,8);c.lineTo(0,4);c.lineTo(-7,8);c.closePath();c.stroke();c.fill();c.restore();
   }
   helpHTML(){
-    const rows=[['W A S D','Move'],['Shift','Sprint'],['Space','Jump / swim up'],['Mouse','Look'],['LMB','Swing pickaxe / place / deconstruct'],['RMB / Esc','Cancel tool'],['E','Hold to hand-mine a node · interact with machines'],['Q','Build menu'],['R / Wheel','Rotate building'],['X','Deconstruct mode'],['G','Copy the building you look at'],['Tab / I','Inventory &amp; hand crafting'],['V','Resource scanner (reveals nodes)'],['M','Map'],['J','Milestones'],['U','Upgrades'],['F','Eat raw meat'],['O','Toggle shadows (Medium/High graphics)']];
+    const rows=[['W A S D','Move'],['Shift','Sprint'],['Space','Jump / swim up'],['Mouse','Look'],['LMB','Swing pickaxe / place / deconstruct'],['RMB / Esc','Cancel tool'],['LMB (hold)','Mine resource nodes and loose rocks, boulders, spires (biome ores)'],['E','Use machines · hold to mine'],['Q','Build menu'],['R / Wheel','Rotate building'],['X','Deconstruct mode'],['G','Copy the building you look at'],['Tab / I','Inventory &amp; hand crafting'],['V','Resource scanner (reveals nodes)'],['M','Map'],['J','Milestones'],['U','Upgrades'],['F','Eat raw meat'],['O','Toggle shadows (Medium/High graphics)']];
     return `<h3 style="font-size:20px">Controls &amp; Guide</h3><table class="k">${rows.map(r=>`<tr><td><kbd>${r[0]}</kbd></td><td>${r[1]}</td></tr>`).join('')}</table><br>
     <h3>How to build a factory</h3><div class="small" style="font-size:13px;line-height:1.6">1. Press <b>V</b> to scan for resource nodes — look for glowing crystals (colour = resource, more crystals = purer).<br>2. Build a <b>Miner</b> on a node and a <b>Solar Array</b> for power (solar is weaker at dawn/dusk and dead at night — Coal Generators fix that).<br>3. Lay <b>Conveyor Belts</b> from the miner's front (arrow side). Hold LMB and drag to paint belt lines. Belts accept items from behind and from the sides.<br>4. Feed ore into a <b>Smelter</b>, then ingots into a <b>Constructor</b> (choose the recipe with E). Chain machines with belts.<br>5. End your line at a <b>Delivery Depot</b> to complete milestones and unlock new machines.<br>6. Beware the wilds: wolves hunt in packs (more at night), bears and boars fight back, scorpions lurk in the desert.</div>`;
   }

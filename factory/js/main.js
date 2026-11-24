@@ -3,6 +3,7 @@ import {World,B,BIOME_NAMES} from './world.js';
 import {placeNodes,createNodeMeshes,nodeLabel} from './nodes.js';
 import {Vegetation} from './vegetation.js';
 import {buildLandmarks} from './landmarks.js';
+import {FX} from './fx.js';
 import {Sky} from './sky.js';
 import {Wildlife} from './wildlife.js';
 import {Factory,recipesFor,RMAP} from './factory.js';
@@ -60,7 +61,7 @@ async function init(){
   const factory=new Factory(world,scene,veg,game);factory.nodes=nodes;game.factory=factory;game.nodes=nodes;game.world=world;
   const player=new Player(world,veg,factory,camera,scene);game.player=player;game.wild=wild;
   setLoad(0.9,'Surveying…');await yieldUI();
-  const ui=new UI(game,{world,nodes,factory,player,sky,camera,wild});game.ui=ui;
+  const fx=new FX(scene);const ui=new UI(game,{world,nodes,factory,player,sky,camera,wild,veg,fx});game.ui=ui;
   game.notify=ui.notify.bind(ui);
   START_INV&&Object.entries(START_INV).forEach(([k,v])=>game.inv.add(k,v));
   // ---- game logic helpers
@@ -110,7 +111,7 @@ async function init(){
   setLoad(1,'Ready');
   $('loadbar').classList.add('hidden');loaded=true;showStart();
   const start=(cont)=>{
-    if(cont){game.loadSave();}else{store.del(SAVE);const mob=device==='phone';game.notify(mob?'Welcome to Ironvale. Find a glowing resource node and build a Miner (BUILD).':'Welcome to Ironvale. Find a glowing resource node and build a Miner (Q).');game.notify(mob?'Hold E on a node to mine by hand. Tap ⛏ to swing.':'Hold E on a node to mine by hand. Swing with LMB.');}
+    if(cont){game.loadSave();}else{store.del(SAVE);const mob=device==='phone';game.notify(mob?'Welcome to Ironvale. Find a glowing resource node and build a Miner (BUILD).':'Welcome to Ironvale. Find a glowing resource node and build a Miner (Q).');game.notify(mob?'Hold ⛏ on ore nodes or any rock to mine.':'Hold LMB on ore nodes or any rock, boulder or spire to mine ore.');}
     if(device==='phone'){ui.setMobile();const st=document.createElement('style');st.textContent=TOUCH_CSS;document.head.appendChild(st);game.touch=new TouchControls(ui);
       try{const el=document.documentElement,f=el.requestFullscreen||el.webkitRequestFullscreen;const r=f&&f.call(el,{navigationUI:'hide'});if(r&&r.catch)r.catch(()=>{});}catch(e){}
       try{screen.orientation&&screen.orientation.lock&&screen.orientation.lock('landscape').catch(()=>{});}catch(e){}}
@@ -132,7 +133,7 @@ async function init(){
       const active=ui.active();
       player.update(dt,active);
       if(!ui.paused()){sky.update(dt,player.pos);factory.update(dt);wild.update(dt,player,game.time);}
-      ui.update(dt);game.touch&&game.touch.update();
+      ui.update(dt);fx.update(dt);game.touch&&game.touch.update();
     }else{sky.update(dt*0.3,player.pos);camera.position.set(Math.cos(game.time*0.04)*60,world.heightAt(0,0)+25,Math.sin(game.time*0.04)*60);camera.lookAt(0,world.heightAt(0,0)+8,0);}
     veg.update(dt,game.time,camera.position.x,camera.position.z);
     factory.animate(dt,player.pos,sky.sunDir);
@@ -140,7 +141,7 @@ async function init(){
     nodes.forEach(n=>{if(n.discovered&&n.beam)n.beam.visible=true;});
     renderer.render(scene,camera);
     game.fps=1000/ema;game.res=pr;adT+=raw;
-    if(adT>1500){adT=0;let np=pr;if(ema>26)np=Math.max(Q.minPr,pr-0.15);else if(ema<17&&pr<Math.min(devicePixelRatio,Q.pr))np=Math.min(Math.min(devicePixelRatio,Q.pr),pr+0.1);
+    if(adT>2500){adT=0;let np=pr;if(ema>34)np=Math.max(Math.min(Q.minPr,devicePixelRatio),pr-0.1);else if(ema<20&&pr<Math.min(devicePixelRatio,Q.pr))np=Math.min(Math.min(devicePixelRatio,Q.pr),pr+0.1);
       if(Math.abs(np-pr)>0.01){pr=np;renderer.setPixelRatio(pr);renderer.setSize(innerWidth,innerHeight);}}
   }
   loop();

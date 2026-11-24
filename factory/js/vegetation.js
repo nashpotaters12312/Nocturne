@@ -6,6 +6,8 @@ import * as G from './geo.js';
 import {Q} from './quality.js';
 
 const CH=128,wind={value:0};
+// radius, centre height factor and hit points of each mineable rock type
+export const MINE={rock:{r:1.05,cy:0.35,hp:3,name:'Rock'},boulder:{r:2.6,cy:0.4,hp:7,name:'Boulder'},pebbles:{r:0.8,cy:0.1,hp:1,name:'Pebbles'},spire:{r:1.7,cy:1.2,hp:12,name:'Rock Spire'},ice:{r:1,cy:0.8,hp:4,name:'Ice Crystals'}};
 const GREEN=(r,g,b)=>new THREE.Color(r,g,b);
 function T(){ // geometry factories
   const trunk=0x5b4129,snowC=0xe8eef5;
@@ -58,8 +60,8 @@ export class Vegetation{
     const add=(type,x,z,scale,yaw,tint,sink=0.1,yOver)=>{
       const y=yOver!==undefined?yOver:w.heightAt(x,z)-sink,key=`${Math.floor((x+HALF)/CH)},${Math.floor((z+HALF)/CH)},${type}`;
       let b=buckets.get(key);if(!b){b={type,items:[]};buckets.set(key,b);}
-      b.items.push({x,y,z,s:scale,yaw,tint});
-      const r=spec[type].r*scale;if(r>0){const hk=Math.floor(x/8)+','+Math.floor(z/8);let a=this.hash.get(hk);if(!a){a=[];this.hash.set(hk,a);}a.push({x,z,r,alive:true});}
+      const item={x,y,z,s:scale,yaw,tint};b.items.push(item);
+      const r=spec[type].r*scale;if(r>0){const hk=Math.floor(x/8)+','+Math.floor(z/8);let a=this.hash.get(hk);if(!a){a=[];this.hash.set(hk,a);}const rec={x,z,r,alive:true};a.push(rec);item.col=rec;}
     };
     const nearNode=(x,z,r)=>nodes.some(n=>Math.abs(n.x-x)<r&&Math.abs(n.z-z)<r);
     const sp=6.5;
@@ -128,6 +130,29 @@ export class Vegetation{
       const a=this.hash.get(hx+','+hz);if(!a)continue;
       for(const t of a)if(t.x>x0-pad-t.r&&t.x<x1+pad+t.r&&t.z>z0-pad-t.r&&t.z<z1+pad+t.r)t.alive=false;
     }
+  }
+  // ---- mineable rocks
+  findMineable(o,d,range=5.5){
+    const cx=Math.floor((o.x+HALF)/CH),cz=Math.floor((o.z+HALF)/CH);let best=null;
+    for(let a=cx-1;a<=cx+1;a++)for(let b=cz-1;b<=cz+1;b++){
+      const list=this.chunks.get(a+','+b);if(!list)continue;
+      for(const im of list){const type=im.userData.type,R0=MINE[type];if(!R0)continue;
+        for(let i=0;i<im.userData.items.length;i++){const it=im.userData.items[i];if(it.dead)continue;
+          const R=R0.r*it.s*(it.hp!==undefined?0.45+0.55*it.hp/it.maxHp:1),cy=it.y+R*R0.cy;
+          const vx=it.x-o.x,vy=cy-o.y,vz=it.z-o.z,t=vx*d.x+vy*d.y+vz*d.z;if(t<0||t>range+R)continue;
+          const d2=vx*vx+vy*vy+vz*vz-t*t;if(d2<R*R&&(!best||t<best.t))best={im,i,it,t,R,type,cy};}}
+    }
+    return best;
+  }
+  hitRock(ref){
+    const {im,i,it,type}=ref,M=MINE[type];
+    if(it.hp===undefined){it.maxHp=Math.max(1,Math.round(M.hp*(type==='pebbles'?1:it.s)));it.hp=it.maxHp;}
+    it.hp--;
+    const m=new THREE.Matrix4();
+    if(it.hp<=0){it.dead=true;im.setMatrixAt(i,m.makeScale(0,0,0));if(it.col)it.col.alive=false;}
+    else{const f=0.45+0.55*it.hp/it.maxHp,q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),it.yaw+(Math.random()-.5)*0.2);
+      m.compose(new THREE.Vector3(it.x,it.y,it.z),q,new THREE.Vector3(it.s*f,it.s*f,it.s*f));im.setMatrixAt(i,m);if(it.col)it.col.r=MINE[type].r*it.s*f*0.9;}
+    im.instanceMatrix.needsUpdate=true;return it.hp<=0;
   }
   // push position out of trunks
   collide(p,rad){
