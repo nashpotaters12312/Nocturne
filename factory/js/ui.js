@@ -7,6 +7,7 @@ import {recipesFor,RMAP} from './factory.js';
 import {sfx} from './audio.js';
 import {HEIGHT} from './models.js';
 import {MINE} from './vegetation.js';
+import {BuildTool,HOTBAR} from './buildtool.js';
 // What loose rocks drop, by biome (weights).
 const DROPS={0:{limestone:6,copper_ore:2,tin_ore:2},1:{limestone:5,iron_ore:3,copper_ore:2,coal:1,tin_ore:1},2:{limestone:4,iron_ore:3,coal:2,copper_ore:2},
   3:{limestone:3,copper_ore:3,bauxite:2,coal:2,tin_ore:1},4:{limestone:3,sulfur:3,iron_ore:2,caterium_ore:2,ruby_ore:1},5:{iron_ore:3,limestone:2,coal:2,caterium_ore:2,quartz:2,titanium_ore:1},
@@ -25,7 +26,7 @@ export class UI{
     this.keys=this.player.keys;this.mouse={l:false,r:false};this.mineT=0;this.swingCd=0;this.lastCell=null;this.lastBelt=null;this.hint='';this.miniT=0;this.cat='Logistics';
     this.mapImg=this.world.mapImage();this.canvas=$('gl');this.mini=$('minimap').getContext('2d');this.scanFx=null;this.discT=0;
     this.dpr=Math.min(2.5,window.devicePixelRatio||1);const mc=$('minimap');mc.width=mc.height=Math.round(180*this.dpr);
-    this.mkScan();this.mkRing();this.bind();
+    this.mkScan();this.mkRing();this.bt=new BuildTool(this);this.bind();
     this.player.onDamage=()=>{sfx.hurt();};
     this.player.onDeath=()=>{this.game.notify('You were killed. Respawning at the landing site…','bad');};
   }
@@ -62,7 +63,7 @@ export class UI{
     this.canvas.addEventListener('mousedown',e=>{
       if(!g.running||this.pauseShown||this.panel||this.mobile)return;
       if(!this.locked&&!this.force){this.lock();return;}
-      if(e.button===0){this.mouse.l=true;this.onClick();}if(e.button===2){this.mouse.r=true;if(this.noLock)return;if(this.mode!=='hand'){this.setMode('hand');}else this.onKey('KeyX');}
+      if(e.button===0){this.mouse.l=true;this.onClick();}if(e.button===2){this.mouse.r=true;if(this.noLock)return;if(this.bt.cancel())return;if(this.mode!=='hand'){this.setMode('hand');}else this.onKey('KeyX');}
     });
     addEventListener('mouseup',e=>{if(e.button===0){this.mouse.l=false;this.lastBelt=null;this.lastCell=null;}if(e.button===2)this.mouse.r=false;});
     addEventListener('contextmenu',e=>e.preventDefault());
@@ -73,11 +74,13 @@ export class UI{
   }
   onKey(code,e){
     const g=this.game;
-    if(code==='Escape'||code==='KeyP'&&this.noLock){if(this.panel){this.closePanel();}else if(this.mode!=='hand'){this.setMode('hand');}else if(this.noLock){this.pauseShown=!this.pauseShown;$('pause').classList.toggle('hidden',!this.pauseShown);}return;}
+    if(code==='Escape'||code==='KeyP'&&this.noLock){if(this.panel){this.closePanel();}else if(this.mode==='build'&&this.bt.cancel()){}else if(this.mode!=='hand'){this.setMode('hand');}else if(this.noLock){this.pauseShown=!this.pauseShown;$('pause').classList.toggle('hidden',!this.pauseShown);}return;}
     if(this.pauseShown)return;
     const panelKeys={KeyQ:'build',Tab:'inv',KeyI:'inv',KeyJ:'mile',KeyU:'upg',KeyM:'map',KeyH:'help'};
     if(panelKeys[code]){if(this.panel===panelKeys[code])this.closePanel();else this.openPanel(panelKeys[code]);return;}
     if(this.panel)return;
+    if(code.startsWith('Digit')&&+code[5]>=1){const t=HOTBAR[+code[5]-1];if(t){if(this.game.unlocked.has(t)){this.setMode('build',t);sfx.ui();}else this.notify(BUILDINGS[t].name+' is locked: complete milestones to unlock it','bad');}return;}
+    if(code==='KeyT'&&this.mode==='build'){this.bt.cycleRecipe();return;}
     if(code==='KeyR'){this.rot=(this.rot+1)%4;}
     else if(code==='KeyX'){this.setMode(this.mode==='delete'?'hand':'delete');}
     else if(code==='KeyV')this.scan();
@@ -87,7 +90,7 @@ export class UI{
     else if(code==='KeyO'){if(!Q.shadows){this.notify('Shadows are off in Low graphics (change in Pause menu)');return;}const r=this.sky.sun.castShadow=!this.sky.sun.castShadow;this.notify('Shadows '+(r?'on':'off'));}
     else if(code==='KeyG'&&this.mode==='hand'){const b=this.target&&this.target.b;if(b&&this.game.unlocked.has(b.type)){this.type=b.type;this.rot=b.rot;this.setMode('build');}}
   }
-  setMode(m,t){this.mode=m;if(t)this.type=t;this.factory.hideGhost();this.lastBelt=null;$('cross').classList.toggle('build',m!=='hand');}
+  setMode(m,t){this.mode=m;if(t)this.type=t;this.factory.hideGhost();this.lastBelt=null;this.bt&&this.bt.reset();$('cross').classList.toggle('build',m!=='hand');}
   openPanel(p,extra){
     this.panel=p;this.pextra=extra;document.exitPointerLock&&document.exitPointerLock();this.factory.hideGhost();
     $('panel').classList.remove('hidden');this.refreshPanel(true);
@@ -102,7 +105,7 @@ export class UI{
   // ---------- actions
   onClick(){
     if(this.player.dead)return;
-    if(this.mode==='build'){this.placeAtAim(true);}
+    if(this.mode==='build'){if(!this.bt.click())this.placeAtAim(true);}
     else if(this.mode==='delete'){const t=this.target;if(t&&t.b){this.factory.remove(t.b);sfx.del();this.game.notify('Deconstructed '+t.b.def.name+' (refunded)');}}
     else if(!(this.target&&(this.target.node||this.target.rock)))this.swing();
   }
@@ -128,43 +131,41 @@ export class UI{
     this.notify(found?`Scanner found ${found} new resource node${found>1?'s':''}: ${Object.keys(types).map(t=>RESOURCES[t].name).join(', ')}`:'Scanner: no new nodes in range','good');
   }
   placeAtAim(click){
-    const aim=this.aim();if(!aim)return false;const d=BUILDINGS[this.type];
+    const aim=this.bt.aimPoint();const d=BUILDINGS[this.type];
     if(!this.game.unlocked.has(this.type)){this.notify('Not unlocked yet','bad');return false;}
-    const [minCx,minCz,chk]=this.footprintAt(aim);
+    const [minCx,minCz,c]=this.footprintAt(aim);
     const f=this.factory;
-    if(this.type==='belt'&&this.mouse.l){ // paint mode
-      const key=minCx+','+minCz;if(this.lastCell===key)return false;
-      if(this.lastBelt&&Math.abs(this.lastBelt.minCx-minCx)+Math.abs(this.lastBelt.minCz-minCz)===1){
-        const dx=minCx-this.lastBelt.minCx,dz=minCz-this.lastBelt.minCz;const r=dx===1?0:dz===1?1:dx===-1?2:3;this.lastBelt.rot=r;this.rot=r;f.refreshNear(this.lastBelt);}
-      this.lastCell=key;
-    }
-    const c=this.footprintAt(aim)[2];
     if(!c.ok){if(click)this.notify(c.reason,'bad'),sfx.bad();return false;}
     const free=c.replace;
     if(!free&&!this.game.inv.canAfford(d.cost)){this.notify('Not enough materials','bad');sfx.bad();return false;}
     if(!free)this.game.inv.pay(d.cost);
     const b=f.place(this.type,minCx,minCz,this.rot);
-    if(b){sfx.place();if(this.type==='belt')this.lastBelt=b;}
+    if(b){sfx.place();const r=this.bt.recipeFor(this.type);if(r)f.setRecipe(b,r.id);}
     return !!b;
   }
   footprintAt(aim){
     const d=BUILDINGS[this.type],gx=(aim.x+HALF)/CELL,gz=(aim.z+HALF)/CELL;
     let [minCx,minCz]=this.factory.footprint(this.type,gx,gz);
     if(d.mine){const n=this.factory.findNode(aim.x,aim.z);if(n){minCx=Math.round((n.x+HALF)/CELL)-d.w/2;minCz=Math.round((n.z+HALF)/CELL)-d.d/2;}}
-    return [minCx,minCz,this.factory.canPlace(this.type,minCx,minCz,this.rot)];
+    let c=this.factory.canPlace(this.type,minCx,minCz,this.rot);
+    if(c.ok&&this.type!=='belt'){const p=this.player.pos,x0=minCx*CELL-HALF-0.5,z0=minCz*CELL-HALF-0.5;
+      if(p.x>x0&&p.x<x0+d.w*CELL+1&&p.z>z0&&p.z<z0+d.d*CELL+1)c={ok:false,reason:'You are standing in the way: step back'};}
+    return [minCx,minCz,c];
   }
   // ---------- per-frame
   update(dt){
     const p=this.player,g=this.game;this.swingCd-=dt;let showRing=null;
-    if(this.mode==='build'&&this.mouse.l&&this.active()&&this.type==='belt')this.placeAtAim(false);
-    this.updateTarget();
-    if(this.mode==='build'&&this.active()){
-      const aim=this.aim();
+    this.updateTarget();this.buildInfo='';
+    const bAim=this.bt.update();
+    if(this.mode==='build'&&this.active()&&this.type==='belt'){if(!this.ghostMsg)this.prompt=this.buildInfo;}
+    else if(this.mode==='build'&&this.active()){
+      const aim=bAim;
       if(aim){const [minCx,minCz,c]=this.footprintAt(aim),d=BUILDINGS[this.type];
         const cx=(minCx+d.w/2)*CELL-HALF,cz=(minCz+d.d/2)*CELL-HALF,afford=this.game.inv.canAfford(d.cost)||c.replace;
         const y=this.world.cellH(Math.max(0,Math.min(SEG-1,minCx+Math.floor(d.w/2))),Math.max(0,Math.min(SEG-1,minCz+Math.floor(d.d/2))));
         this.factory.showGhost(this.type,new THREE.Vector3(cx,y+(this.type==='belt'?0.3:0),cz),this.rot,c.ok&&afford&&this.game.unlocked.has(this.type));
         this.ghostMsg=!c.ok?c.reason:!afford?'Not enough materials':'';
+        if(d.machine&&!this.ghostMsg){const r=this.bt.recipeFor(this.type);this.prompt=`${d.name} · recipe: <b>${r?r.name:'automatic'}</b> (<b>${this.mobile?'RCP':'T'}</b> to change) · output on the orange arrow`;}
         if(d.mine){const n=c.node||this.factory.findNode(aim.x,aim.z);
           if(n){showRing=n;const mult=PURITY[n.purity].mult,rate=60*mult*d.mine*this.factory.mods.miner;
             if(c.ok&&afford)this.prompt=`<b>${RESOURCES[n.type].name} node (${PURITY[n.purity].name})</b> · ${d.name} makes <b>${rate.toFixed(0)}</b>/min · ${d.power} MW · <b>LMB</b> place`;}
@@ -230,10 +231,18 @@ export class UI{
     $('clock').textContent=`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} · ${hh>=6&&hh<18?'Day':'Night'}${g.fps?' · '+g.fps.toFixed(0)+' fps':''}${g.res?' · '+g.res.toFixed(2)+'x res':''}`;
     const m=g.curMilestone();
     $('objective').innerHTML=m?`<h4>Milestone ${g.done.length+1}/${MILESTONES.length}</h4><div><b>${m.name}</b></div>`+Object.entries(m.req).map(([k,n])=>{const d=g.delivered[k]||0;return `<div class="req ${d>=n?'ok':''}"><span>${chip(k)}${ITEMS[k].name}</span><span>${d}/${n}</span></div>`;}).join('')+`<div class="small">Deliver via Depot (J)</div>`:`<h4>All milestones complete</h4><div>The Beacon is lit. Keep building!</div>`;
-    const hint={hand:'<b>Hold LMB</b> Mine rocks / swing · <b>E</b> Use · <b>Q</b> Build · <b>X</b> Deconstruct · <b>V</b> Scan · <b>Tab</b> Inventory',build:`<b>${BUILDINGS[this.type].name}</b> · <b>LMB</b> Place · <b>R</b>/<b>Wheel</b> Rotate · <b>RMB</b>/<b>Esc</b> Cancel`+(this.type==='belt'?' · drag to lay lines':''),delete:'<b>Deconstruct</b> · <b>LMB</b> Remove building (full refund) · <b>RMB</b> Cancel'};
-    $('toolhint').innerHTML=this.mobile?(this.mode==='build'?`<b>${BUILDINGS[this.type].name}</b> · ✚ place · ⟳ rotate · ✕ cancel`+(this.type==='belt'?' · hold ✚ and walk to lay belts':''):this.mode==='delete'?'Aim and tap ✖ to remove · ✕ cancel':'Left: move · Drag: look · hold ⛏ on rocks to mine · E use'):hint[this.mode];
+    const hint={hand:'<b>Hold LMB</b> Mine rocks / swing · <b>E</b> Use · <b>Q</b> Build · <b>X</b> Deconstruct · <b>V</b> Scan · <b>Tab</b> Inventory',build:`<b>${BUILDINGS[this.type].name}</b> · `+(this.type==='belt'?'<b>LMB</b> start, <b>LMB</b> end (keeps going) · <b>RMB</b> stop':'<b>LMB</b> Place · <b>R</b>/<b>Wheel</b> Rotate'+(BUILDINGS[this.type].machine?' · <b>T</b> Recipe':'')+' · <b>RMB</b> Cancel')+' · <b>1-9</b> Hotbar',delete:'<b>Deconstruct</b> · <b>LMB</b> Remove building (full refund) · <b>RMB</b> Cancel'};
+    $('toolhint').innerHTML=this.mobile?(this.mode==='build'?`<b>${BUILDINGS[this.type].name}</b> · ✚ place · ⟳ rotate · ✕ cancel`+(this.type==='belt'?' · tap ✚ at the start, then ✚ at the end':''):this.mode==='delete'?'Aim and tap ✖ to remove · ✕ cancel':'Left: move · Drag: look · hold ⛏ on rocks to mine · E use'):hint[this.mode];
+    this.hotbarT=(this.hotbarT||0)-dt;if(this.hotbarT<=0){this.hotbarT=0.3;this.drawHotbar();}
     this.miniT-=dt;if(this.miniT<=0){this.miniT=0.1;this.drawMini();this.drawCompass();
       const b=this.world.biomeAt(p.pos.x,p.pos.z);$('biome').textContent=`${BIOME_NAMES[b]} · alt ${p.pos.y.toFixed(0)}m · (${p.pos.x.toFixed(0)}, ${p.pos.z.toFixed(0)})`;}
+  }
+  drawHotbar(){
+    const el=$('hotbar');if(!el)return;const g=this.game;
+    const key=HOTBAR.map(t=>(g.unlocked.has(t)?1:0)+(this.mode==='build'&&this.type===t?'s':'')).join('')+this.mobile;
+    if(key===this.hbKey)return;this.hbKey=key;
+    el.innerHTML=HOTBAR.map((t,i)=>{const u=g.unlocked.has(t);return `<button class="hb ${u?'':'lock'} ${this.mode==='build'&&this.type===t?'sel':''}" data-hb="${i}"><kbd>${i+1}</kbd>${BUILDINGS[t].name.replace('Conveyor ','').replace('Delivery ','').replace(' Crate','').replace(' Array','')}</button>`;}).join('');
+    el.querySelectorAll('[data-hb]').forEach(b=>b.onpointerdown=e=>{e.preventDefault();e.stopPropagation();this.onKey('Digit'+(+b.dataset.hb+1));});
   }
   drawMini(){
     const c=this.mini,S=180,p=this.player,R=260,scale=S/(2*R)*(WORLDSCALE);

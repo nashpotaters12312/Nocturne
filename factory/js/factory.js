@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {BUILDINGS,RECIPES,ITEMS,PURITY,DIRS,CELL,HALF,SEG} from './data.js';
-import {makeModel,makeGhost,setGhostValid,BeltRenderer,lightMats,HEIGHT} from './models.js';
+import {makeModel,makeGhost,setGhostValid,BeltRenderer,lightMats,HEIGHT,plinth} from './models.js';
 import {Dust} from './dust.js';
 
 const GAP=0.5,BELT_V=1.0;
@@ -13,7 +13,7 @@ export class Factory{
     this.world=world;this.scene=scene;this.veg=veg;this.game=game;this.cells=new Map();this.list=[];this.belts=[];this.nid=1;
     this.group=new THREE.Group();scene.add(this.group);this.br=new BeltRenderer(scene);
     this.mods={belt:1,miner:1,mach:1,power:1,solar:1};this.supply=0;this.demand=0;this.eff=1;this.acc=0;this.time=0;this.nodes=[];
-    this.ghosts={};this.ghost=null;this.ghostType=null;this.dust=new Dust(scene);
+    this.ghosts=Object.create(null);this.ghost=null;this.ghostType=null;this.dust=new Dust(scene);
   }
   key(cx,cz){return cz*SEG+cx;}
   at(cx,cz){return cx<0||cz<0||cx>=SEG||cz>=SEG?null:this.cells.get(cz*SEG+cx);}
@@ -26,10 +26,11 @@ export class Factory{
   canPlace(type,minCx,minCz,rot){
     const d=BUILDINGS[type],w=this.world;
     if(minCx<1||minCz<1||minCx+d.w>=SEG-1||minCz+d.d>=SEG-1)return {ok:false,reason:'Out of bounds'};
-    let mn=1e9,mx=-1e9,replace=null;
-    for(let j=minCz;j<=minCz+d.d;j++)for(let i=minCx;i<=minCx+d.w;i++){const h=w.hgt[j*(SEG+1)+i];mn=Math.min(mn,h);mx=Math.max(mx,h);}
-    if(mn<0.5)return {ok:false,reason:'Too close to water'};
-    if(mx-mn>(type==='belt'?4:5.5))return {ok:false,reason:'Terrain too steep'};
+    let mn=1e9,mx=-1e9,sum=0,cnt=0,replace=null;
+    for(let j=minCz;j<=minCz+d.d;j++)for(let i=minCx;i<=minCx+d.w;i++){const h=w.hgt[j*(SEG+1)+i];mn=Math.min(mn,h);mx=Math.max(mx,h);sum+=h;cnt++;}
+    if(type==='belt'?mn<0.5:sum/cnt<0.9)return {ok:false,reason:'Too close to water'};
+    // machines sit on an automatic foundation, so only very steep ground is refused
+    if(mx-mn>(type==='belt'?4:14))return {ok:false,reason:'Terrain too steep, even for a foundation'};
     for(let j=minCz;j<minCz+d.d;j++)for(let i=minCx;i<minCx+d.w;i++){const o=this.at(i,j);if(o){if(type==='belt'&&o.type==='belt'&&d.w===1)replace=o;else return {ok:false,reason:'Space is occupied'};}}
     let node=null;
     if(d.mine){const [cx,cz]=[(minCx+d.w/2)*CELL-HALF,(minCz+d.d/2)*CELL-HALF];node=this.findNode(cx,cz);
@@ -43,10 +44,12 @@ export class Factory{
     if(chk.replace){chk.replace.rot=rot;this.afterBeltChange(chk.replace);return chk.replace;}
     const b={id:this.nid++,type,def:d,minCx,minCz,w:d.w,d:d.d,rot,in:{},out:{},prog:0,status:'idle',node:chk.node||null,store:{},fuel:0,burn:0,rr:0,buf:null,recipe:null,mt:0,anim:Math.random()*6,sink:0};
     const [cx,cz]=this.center(b);b.x=cx;b.z=cz;
+    let lowest=1e9;if(type!=='belt')for(let j=minCz;j<=minCz+d.d;j++)for(let i=minCx;i<=minCx+d.w;i++)lowest=Math.min(lowest,this.world.hgt[j*(SEG+1)+i]);
     if(type!=='belt'){b.y=this.world.claim(minCx,minCz,d.w,d.d);}else b.y=this.world.cellH(minCx,minCz);
     if(d.machine){const rs=recipesFor(d.machine);b.recipe=saved&&saved.rec?RMAP[saved.rec]:null;}
     if(type==='belt'){b.items=[];b.slot=this.br.alloc();this.belts.push(b);}
-    else{b.group=makeModel(type);b.group.position.set(cx,b.y,cz);b.group.rotation.y=-rot*Math.PI/2;this.group.add(b.group);}
+    else{b.group=makeModel(type);b.group.position.set(cx,b.y,cz);b.group.rotation.y=-rot*Math.PI/2;this.group.add(b.group);
+      const ph=b.y-lowest;if(ph>0.5)b.group.add(plinth(d.w,d.d,ph+1));}
     if(chk.node){chk.node.occupied=b;}
     for(let j=minCz;j<minCz+d.d;j++)for(let i=minCx;i<minCx+d.w;i++)this.cells.set(this.key(i,j),b);
     this.list.push(b);

@@ -3,9 +3,10 @@
 const BTN=[
   // [id, label, kind, arg] kind: hold=key held, tap=onKey, act=primary action, use=E
   ['act','⛏','act'],['use','E','use'],['jump','⤒','hold','Space'],['run','RUN','toggle','ShiftLeft'],
-  ['rot','⟳','tap','KeyR'],['cancel','✕','cancel'],['del','DEL','tap','KeyX'],['eat','EAT','tap','KeyF'],
+  ['rot','⟳','tap','KeyR'],['rcp','RCP','tap','KeyT'],['cancel','✕','cancel'],['del','DEL','tap','KeyX'],['eat','EAT','tap','KeyF'],
   ['build','BUILD','tap','KeyQ'],['inv','BAG','tap','Tab'],['upg','UPG','tap','KeyU'],['goal','GOALS','tap','KeyJ'],['map','MAP','tap','KeyM'],['scan','SCAN','tap','KeyV'],['pause','❚❚','pause'],
 ];
+const BUILDINGS_M=ui=>['smelter','constructor','assembler','foundry'].includes(ui.type);
 export class TouchControls{
   constructor(ui){
     this.ui=ui;this.player=ui.player;this.stick={x:0,y:0};this.player.stick=this.stick;
@@ -34,7 +35,7 @@ export class TouchControls{
       case 'toggle':k[arg]=!k[arg];this.btn[id].classList.toggle('lit',!!k[arg]);break;
       case 'act':ui.mouse.l=on;if(on)ui.onClick();else{ui.lastBelt=null;ui.lastCell=null;}break;
       case 'use':if(on){k.KeyE=true;this.useT=performance.now();ui.onKey('KeyE');}else k.KeyE=false;break;
-      case 'cancel':ui.setMode('hand');break;
+      case 'cancel':if(!ui.bt.cancel())ui.setMode('hand');break;
       case 'pause':ui.togglePause();break;
     }
   }
@@ -64,7 +65,7 @@ export class TouchControls{
   }
   update(){
     const ui=this.ui,b=this.btn,build=ui.mode==='build',del=ui.mode==='delete';
-    b.rot.hidden=!build;b.cancel.hidden=ui.mode==='hand';b.del.hidden=build||del;
+    b.rot.hidden=!build||ui.type==='belt';b.rcp.hidden=!(build&&BUILDINGS_M(ui));b.cancel.hidden=ui.mode==='hand';b.del.hidden=build||del;
     b.act.textContent=build?'✚':del?'✖':'⛏';b.eat.hidden=!(this.ui.game.inv.get('meat')>0&&this.player.hp<this.player.maxHp);
     this.root.hidden=!!(ui.panel||ui.pauseShown||!ui.game.running);
   }
@@ -80,7 +81,7 @@ export const TOUCH_CSS=`
 #tactions .tb{position:absolute}
 .tb-act{right:0;bottom:0;width:84px!important;height:84px!important;font-size:30px!important;background:rgba(185,122,18,.8)!important}
 .tb-use{right:96px;bottom:6px;font-size:18px!important}.tb-jump{right:12px;bottom:96px;font-size:22px!important}.tb-run{right:160px;bottom:6px}
-.tb-rot{right:84px;bottom:84px;font-size:22px!important}.tb-cancel{right:150px;bottom:74px;font-size:20px!important}.tb-del{right:150px;bottom:74px}.tb-eat{right:76px;bottom:150px}
+.tb-rot{right:84px;bottom:84px;font-size:22px!important}.tb-cancel{right:150px;bottom:74px;font-size:20px!important}.tb-del{right:150px;bottom:74px}.tb-eat{right:76px;bottom:150px}.tb-rcp{right:150px;bottom:140px;font-size:11px!important}
 #tmenu{position:absolute;right:calc(8px + env(safe-area-inset-right,0px));top:calc(130px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;gap:6px;pointer-events:none}
 #tmenu .tb{width:52px;height:34px;border-radius:8px;font-size:11px}
 #trotate{display:none;position:absolute;left:50%;top:40%;transform:translateX(-50%);padding:10px 16px;background:rgba(16,22,30,.88);border:1px solid #2c3644;border-radius:8px;font-size:14px;color:#e6ebf2;pointer-events:none;text-align:center}

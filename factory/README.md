@@ -28,6 +28,13 @@ python3 -m http.server 8123
 - **Progression** – deliver items to a Delivery Depot to finish 6 milestones that unlock machines, boots and the final Beacon.
 - Day/night cycle, weather-less sky with clouds and stars, auto-save (localStorage).
 
+## Building
+- **1–9** hotbar (belt, miner, smelter, constructor, splitter, storage, solar, assembler, depot) or **Q** for the full menu.
+- A grid appears on the terrain; ghosts show an orange **output** arrow and a blue **input** arrow.
+- **Belts:** click the start, then click the end – an L-shaped line previews with its length and cost, builds in one go, and keeps chaining from the end. RMB stops.
+- **Foundations:** machines placed on slopes (up to 14 m of relief) get a concrete foundation automatically.
+- **T** picks the recipe new machines start with. Deconstruct mode (X) highlights the target in red.
+
 ## Mining
 Hold LMB (⛏ on touch) on a resource node for its ore, or on any loose rock, boulder, rock spire or ice formation. Rocks crack and shrink with each strike, then break with a bonus drop. What they drop depends on the biome (e.g. sulfur and ruby in the desert, quartz, titanium and uranium in the snow). The Prospector Pickaxe upgrade mines faster and yields more.
 

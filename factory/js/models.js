@@ -96,13 +96,23 @@ export function makeModel(type){
   return g;
 }
 const ghostMat={ok:new THREE.MeshBasicMaterial({color:0x44ff88,transparent:true,opacity:0.45,depthWrite:false}),bad:new THREE.MeshBasicMaterial({color:0xff4444,transparent:true,opacity:0.45,depthWrite:false})};
+const arrowMat={out:new THREE.MeshBasicMaterial({color:0xffb02e,transparent:true,opacity:0.9,depthWrite:false}),in:new THREE.MeshBasicMaterial({color:0x38c8ff,transparent:true,opacity:0.9,depthWrite:false})};
+function arrow(m,x,y){const g=new THREE.Group();const h=new THREE.Mesh(new THREE.ConeGeometry(0.9,1.6,4),m);h.rotation.z=-Math.PI/2;h.position.x=0.6;
+  const s=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.35,0.6),m);s.position.x=-0.6;g.add(h,s);g.position.set(x,y,0);g.traverse(o=>o.userData.arrow=true);return g;}
 export function makeGhost(type){
   const g=type==='belt'?beltGhost():makeModel(type);
   g.traverse(o=>{if(o.isMesh){o.userData.keep=true;o.material=ghostMat.ok;o.castShadow=false;}});
+  if(type!=='belt'){const d=BUILDINGS[type],W=d.w*CELL;
+    if(!['solar','coal_gen','nuclear','depot','storage'].includes(type))g.add(arrow(arrowMat.out,W/2+1.6,1.2));
+    if(d.machine||['coal_gen','nuclear','depot','storage','splitter'].includes(type))g.add(arrow(arrowMat.in,-W/2-1.8,1.2));}
   return g;
 }
+export function plinth(w,d,h){
+  const W=w*CELL-0.1,D=d*CELL-0.1;
+  const m=new THREE.Mesh(G.merge([G.box(W,h,D,0x85837c,{y:-h/2,jit:0.03}),G.box(W+0.3,0.5,D+0.3,0x6d6b66,{y:-0.3})]),stdMat);m.castShadow=m.receiveShadow=true;return m;
+}
 function beltGhost(){const g=new THREE.Group();g.add(new THREE.Mesh(new THREE.BoxGeometry(4,0.5,2.4),ghostMat.ok));const a=new THREE.Mesh(new THREE.ConeGeometry(0.8,1.6,3),ghostMat.ok);a.rotation.z=-Math.PI/2;a.position.y=0.7;g.add(a);return g;}
-export function setGhostValid(g,ok){g.traverse(o=>{if(o.isMesh)o.material=ok?ghostMat.ok:ghostMat.bad;});}
+export function setGhostValid(g,ok){g.traverse(o=>{if(o.isMesh&&!o.userData.arrow)o.material=ok?ghostMat.ok:ghostMat.bad;});}
 
 // Belts and item instancing
 export class BeltRenderer{
