@@ -1,0 +1,31 @@
+# IRONVALE — Planetary Factory
+
+A Satisfactory-inspired first-person factory-building game that runs in the browser (Three.js, no build step).
+
+## Run
+Serve the **repository root** (the game imports Three.js from `../lib`) and open `/factory/`:
+
+```bash
+cd /path/to/Nocturne
+python3 -m http.server 8123
+# open http://localhost:8123/factory/
+```
+
+## What's in it
+- **Procedural 1.5 km world** – domain-warped fBm continents, ridged mountains, winding rivers, lakes, desert mesas; 7 biomes
+  (beach, grassland, forest, swamp, desert, highlands, snowfields) with ~40 k trees, rocks, cacti, palms, reeds, grass and flowers.
+- **120+ resource nodes in 9 types** – iron, copper, limestone, coal, caterium, sulfur, quartz, bauxite, uranium – each Impure / Normal / Pure,
+  often found in clusters, matched to biomes (uranium and quartz high in the snow, sulfur in the desert, bauxite in swamps …).
+  Press **V** to scan and reveal them on the compass, minimap and map.
+- **Wildlife** – deer, rabbits, snow hares, mountain goats, camels, lizards, frogs (prey that flee); boars and bears (fight back);
+  wolf packs and sand scorpions (hunters, bolder at night); flocks of birds and vultures, fish schools that leap, fireflies at night.
+- **Factory sim** – grid-based buildings that flatten the terrain, conveyor belts (drag to paint), splitters, miners, smelters,
+  constructors, assemblers, foundries, storage, delivery depot, and a power grid (solar, coal, nuclear; solar dies at night).
+  23 recipes from ore to computers and uranium fuel rods.
+- **Progression** – deliver items to a Delivery Depot to finish 6 milestones that unlock machines, boots and the final Beacon.
+- Day/night cycle, weather-less sky with clouds and stars, auto-save (localStorage).
+
+## Controls
+WASD move · Shift sprint · Space jump · Mouse look · **LMB** swing / place · **RMB / Esc** cancel · **E** hold to hand-mine a node / use machines ·
+**Q** build menu · **R / wheel** rotate · **X** deconstruct · **G** copy building · **Tab** inventory + hand crafting · **V** scan · **M** map ·
+**J** milestones · **F** eat meat · **O** toggle shadows · **H** help.
