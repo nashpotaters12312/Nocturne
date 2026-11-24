@@ -8,6 +8,7 @@ import {Wildlife} from './wildlife.js';
 import {Factory,recipesFor,RMAP} from './factory.js';
 import {Player} from './player.js';
 import {UI} from './ui.js';
+import {TouchControls,TOUCH_CSS} from './touch.js';
 import {sfx} from './audio.js';
 import {Q,level as QLEVEL,setting as QSET} from './quality.js';
 import {WORLD,HALF,CELL,SEG,ITEMS,RECIPES,BUILDINGS,START_UNLOCKED,START_INV,MILESTONES,RESOURCES,PURITY,UPGRADES} from './data.js';
@@ -23,6 +24,20 @@ window.ironvale=game;
 const setLoad=(p,t)=>{$('loadfill').style.width=(p*100)+'%';$('loadtxt').textContent=t;};
 const yieldUI=()=>new Promise(r=>setTimeout(r,16));
 
+let device=null,loaded=false;
+function showStart(){
+  if(!loaded||!device)return;
+  $('btnNew').classList.remove('hidden');if(game.hasSave&&game.hasSave())$('btnContinue').classList.remove('hidden');
+}
+function setupDevicePick(){
+  const touch=matchMedia('(pointer: coarse)').matches||/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+  $(touch?'btnPhone':'btnPC').classList.add('det');
+  const pick=d=>{device=d;$('btnPC').classList.toggle('pick',d==='pc');$('btnPhone').classList.toggle('pick',d==='phone');
+    try{localStorage.setItem('ironvale-device',d);}catch(e){}
+    if(d==='phone')document.body.classList.add('mobile');else document.body.classList.remove('mobile');showStart();};
+  $('btnPC').onclick=()=>pick('pc');$('btnPhone').onclick=()=>pick('phone');
+}
+setupDevicePick();
 async function init(){
   const renderer=new THREE.WebGLRenderer({canvas:$('gl'),antialias:Q.aa,powerPreference:'high-performance',stencil:false});
   let pr=Math.min(devicePixelRatio,Q.pr);renderer.setPixelRatio(pr);renderer.setSize(innerWidth,innerHeight);
@@ -93,10 +108,12 @@ async function init(){
       return true;}catch(e){console.warn(e);return false;}
   };
   setLoad(1,'Ready');
-  $('btnNew').classList.remove('hidden');if(game.hasSave())$('btnContinue').classList.remove('hidden');
-  $('loadbar').classList.add('hidden');
+  $('loadbar').classList.add('hidden');loaded=true;showStart();
   const start=(cont)=>{
-    if(cont){game.loadSave();}else{store.del(SAVE);game.notify('Welcome to Ironvale. Find a glowing resource node and build a Miner (Q).');game.notify('Hold E on a node to mine by hand. Swing with LMB.');}
+    if(cont){game.loadSave();}else{store.del(SAVE);const mob=device==='phone';game.notify(mob?'Welcome to Ironvale. Find a glowing resource node and build a Miner (BUILD).':'Welcome to Ironvale. Find a glowing resource node and build a Miner (Q).');game.notify(mob?'Hold E on a node to mine by hand. Tap ⛏ to swing.':'Hold E on a node to mine by hand. Swing with LMB.');}
+    if(device==='phone'){ui.setMobile();const st=document.createElement('style');st.textContent=TOUCH_CSS;document.head.appendChild(st);game.touch=new TouchControls(ui);
+      try{const el=document.documentElement,f=el.requestFullscreen||el.webkitRequestFullscreen;const r=f&&f.call(el,{navigationUI:'hide'});if(r&&r.catch)r.catch(()=>{});}catch(e){}
+      try{screen.orientation&&screen.orientation.lock&&screen.orientation.lock('landscape').catch(()=>{});}catch(e){}}
     $('title').classList.add('hidden');$('hud').classList.remove('hidden');ui.lock();game.running=true;
   };
   $('btnNew').onclick=()=>start(false);$('btnContinue').onclick=()=>start(true);
@@ -115,7 +132,7 @@ async function init(){
       const active=ui.active();
       player.update(dt,active);
       if(!ui.paused()){sky.update(dt,player.pos);factory.update(dt);wild.update(dt,player,game.time);}
-      ui.update(dt);
+      ui.update(dt);game.touch&&game.touch.update();
     }else{sky.update(dt*0.3,player.pos);camera.position.set(Math.cos(game.time*0.04)*60,world.heightAt(0,0)+25,Math.sin(game.time*0.04)*60);camera.lookAt(0,world.heightAt(0,0)+8,0);}
     veg.update(dt,game.time,camera.position.x,camera.position.z);
     factory.animate(dt,player.pos,sky.sunDir);

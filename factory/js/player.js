@@ -30,8 +30,9 @@ export class Player{
     const fx=-Math.sin(this.yaw),fz=-Math.cos(this.yaw),rx=-fz,rz=fx;
     let mx=0,mz=0;
     if(active&&!this.dead){if(k['KeyW']){mx+=fx;mz+=fz;}if(k['KeyS']){mx-=fx;mz-=fz;}if(k['KeyD']){mx+=rx;mz+=rz;}if(k['KeyA']){mx-=rx;mz-=rz;}}
-    const l=Math.hypot(mx,mz);if(l>0){mx/=l;mz/=l;}
-    this.sprinting=active&&(k['ShiftLeft']||k['ShiftRight'])&&l>0;
+    let l=Math.hypot(mx,mz);if(l>0){mx/=l;mz/=l;}
+    const st=this.stick;if(active&&!this.dead&&st&&(st.x||st.y)){const a=Math.min(1,Math.hypot(st.x,st.y));mx=fx*-st.y+rx*st.x;mz=fz*-st.y+rz*st.x;const n=Math.hypot(mx,mz)||1;mx=mx/n*a;mz=mz/n*a;l=a;}
+    this.sprinting=active&&(k['ShiftLeft']||k['ShiftRight']||k['TouchSprint'])&&l>0;
     const ground=w.heightAt(this.pos.x,this.pos.z);
     this.inWater=ground<-0.4&&this.pos.y<0.7;
     let sp=(this.sprinting?13:7)*this.speedMul;if(this.inWater)sp=4.2;if(this.fly)sp=this.sprinting?60:25;

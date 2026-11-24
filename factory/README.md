@@ -28,6 +28,9 @@ python3 -m http.server 8123
 - **Progression** – deliver items to a Delivery Depot to finish 6 milestones that unlock machines, boots and the final Beacon.
 - Day/night cycle, weather-less sky with clouds and stars, auto-save (localStorage).
 
+## Phone and tablet
+The title screen asks whether you're on a computer or a phone/tablet. Touch mode gives a move stick (left), drag-to-look, action buttons (swing/place, E, jump, run, rotate, cancel, deconstruct, eat) and a menu row (build, bag, upgrades, goals, map, scan, pause). It uses Low graphics and asks for fullscreen landscape.
+
 ## Controls
 WASD move · Shift sprint · Space jump · Mouse look · **LMB** swing / place · **RMB / Esc** cancel · **E** hold to hand-mine a node / use machines ·
 **Q** build menu · **R / wheel** rotate · **X** deconstruct · **G** copy building · **Tab** inventory + hand crafting · **V** scan · **M** map ·

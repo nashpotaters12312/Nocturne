@@ -22,10 +22,12 @@ export class UI{
     this.player.onDamage=()=>{sfx.hurt();};
     this.player.onDeath=()=>{this.game.notify('You were killed. Respawning at the landing site…','bad');};
   }
-  active(){return (this.locked||this.force)&&!this.panel&&!this.pauseShown;}
+  active(){return (this.locked||this.force||this.mobile)&&!this.panel&&!this.pauseShown;}
+  setMobile(){this.mobile=true;this.noLock=true;this.force=true;document.body.classList.add('mobile');}
+  togglePause(){this.pauseShown=!this.pauseShown;$('pause').classList.toggle('hidden',!this.pauseShown);}
   paused(){return this.pauseShown;}
-  lock(){this.pauseShown=false;$('pause').classList.add('hidden');if(this.noLock){this.force=true;return;}try{const p=this.canvas.requestPointerLock();if(p&&p.catch)p.catch(()=>this.lockFailed());}catch(e){this.lockFailed();}}
-  lockFailed(){if(this.noLock)return;this.noLock=true;this.force=true;this.notify('Mouse capture is unavailable here: hold the right mouse button and drag to look. P pauses.');}
+  lock(){this.pauseShown=false;$('pause').classList.add('hidden');if(this.mobile||this.noLock){this.force=true;return;}try{const p=this.canvas.requestPointerLock();if(p&&p.catch)p.catch(()=>this.lockFailed());}catch(e){this.lockFailed();}}
+  lockFailed(){if(this.noLock||this.mobile)return;this.noLock=true;this.force=true;this.notify('Mouse capture is unavailable here: hold the right mouse button and drag to look. P pauses.');}
   notify(msg,type=''){const d=document.createElement('div');d.className='notif '+type;d.textContent=msg;const n=$('notifs');n.appendChild(d);while(n.children.length>6)n.removeChild(n.firstChild);setTimeout(()=>{d.style.opacity=0;setTimeout(()=>d.remove(),500);},4500);}
   mkScan(){const m=new THREE.Mesh(new THREE.SphereGeometry(1,32,16),new THREE.MeshBasicMaterial({color:0x38c8ff,transparent:true,opacity:0.18,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending,fog:false}));m.visible=false;this.scene=this.camera.parent;this.scanMesh=m;}
   bind(){
@@ -44,7 +46,7 @@ export class UI{
     addEventListener('keyup',e=>{this.keys[e.code]=false;});
     addEventListener('blur',()=>{for(const k in this.keys)this.keys[k]=false;});
     this.canvas.addEventListener('mousedown',e=>{
-      if(!g.running||this.pauseShown||this.panel)return;
+      if(!g.running||this.pauseShown||this.panel||this.mobile)return;
       if(!this.locked&&!this.force){this.lock();return;}
       if(e.button===0){this.mouse.l=true;this.onClick();}if(e.button===2){this.mouse.r=true;if(this.noLock)return;if(this.mode!=='hand'){this.setMode('hand');}else this.onKey('KeyX');}
     });
@@ -169,7 +171,7 @@ export class UI{
       const b=this.factory.pick(o,d,this.mode==='delete'?30:12);
       if(b){this.target={b};
         if(this.mode==='delete')this.prompt=`<b>LMB</b> Deconstruct ${b.def.name}`;
-        else{const act=b.type==='depot'?'Milestones':b.type==='belt'?'':'Open';this.prompt=`${b.def.name}${b.status&&b.type!=='belt'?' — '+(STATUS[b.status]||b.status):''}${act&&b.type!=='splitter'?` · <b>E</b> ${act}`:''} · <b>G</b> Copy`;}
+        else{const act=b.type==='depot'?'Milestones':b.type==='belt'?'':'Open';this.prompt=`${b.def.name}${b.status&&b.type!=='belt'?' — '+(STATUS[b.status]||b.status):''}${act&&b.type!=='splitter'?` · <b>E</b> ${act}`:''}${this.mobile?'':' · <b>G</b> Copy'}`;}
         return;}
       if(this.mode==='hand'){
         let best=null,bd=8;for(const n of this.nodes){const dx=n.x-p.pos.x,dz=n.z-p.pos.z,dist=Math.hypot(dx,dz);if(dist>bd+2)continue;
@@ -193,7 +195,7 @@ export class UI{
     const m=g.curMilestone();
     $('objective').innerHTML=m?`<h4>Milestone ${g.done.length+1}/${MILESTONES.length}</h4><div><b>${m.name}</b></div>`+Object.entries(m.req).map(([k,n])=>{const d=g.delivered[k]||0;return `<div class="req ${d>=n?'ok':''}"><span>${chip(k)}${ITEMS[k].name}</span><span>${d}/${n}</span></div>`;}).join('')+`<div class="small">Deliver via Depot (J)</div>`:`<h4>All milestones complete</h4><div>The Beacon is lit. Keep building!</div>`;
     const hint={hand:'<b>LMB</b> Swing · <b>E</b> Mine/Use · <b>Q</b> Build · <b>X</b> Deconstruct · <b>V</b> Scan · <b>Tab</b> Inventory',build:`<b>${BUILDINGS[this.type].name}</b> · <b>LMB</b> Place · <b>R</b>/<b>Wheel</b> Rotate · <b>RMB</b>/<b>Esc</b> Cancel`+(this.type==='belt'?' · drag to lay lines':''),delete:'<b>Deconstruct</b> · <b>LMB</b> Remove building (full refund) · <b>RMB</b> Cancel'};
-    $('toolhint').innerHTML=hint[this.mode];
+    $('toolhint').innerHTML=this.mobile?(this.mode==='build'?`<b>${BUILDINGS[this.type].name}</b> · ✚ place · ⟳ rotate · ✕ cancel`+(this.type==='belt'?' · hold ✚ and walk to lay belts':''):this.mode==='delete'?'Aim and tap ✖ to remove · ✕ cancel':'Left: move · Drag: look · ⛏ swing · E mine/use'):hint[this.mode];
     this.miniT-=dt;if(this.miniT<=0){this.miniT=0.1;this.drawMini();this.drawCompass();
       const b=this.world.biomeAt(p.pos.x,p.pos.z);$('biome').textContent=`${BIOME_NAMES[b]} · alt ${p.pos.y.toFixed(0)}m · (${p.pos.x.toFixed(0)}, ${p.pos.z.toFixed(0)})`;}
   }

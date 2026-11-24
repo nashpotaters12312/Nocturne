@@ -7,7 +7,8 @@ const PRESETS={
 export function detect(){
   let q='auto';try{q=localStorage.getItem('ironvale-q')||'auto';}catch(e){}
   if(q==='auto'){const cros=/CrOS/.test(navigator.userAgent),cores=navigator.hardwareConcurrency||4,mem=navigator.deviceMemory||4;
-    q=cros||cores<=4||mem<=4?'low':cores<=8?'medium':'high';}
+    const touch=matchMedia&&matchMedia('(pointer: coarse)').matches;let dev=null;try{dev=localStorage.getItem('ironvale-device');}catch(e){}
+    q=cros||dev==='phone'||(touch&&!dev)||cores<=4||mem<=4?'low':cores<=8?'medium':'high';}
   return q;
 }
 export const setting=(()=>{try{return localStorage.getItem('ironvale-q')||'auto';}catch(e){return 'auto';}})();
