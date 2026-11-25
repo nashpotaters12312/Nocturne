@@ -129,19 +129,27 @@ export class BeltRenderer{
     this.tex=new THREE.CanvasTexture(c);this.tex.wrapS=this.tex.wrapT=THREE.RepeatWrapping;this.tex.repeat.set(2,1);this.tex.colorSpace=THREE.SRGBColorSpace;
     this.top=new THREE.InstancedMesh(new THREE.BoxGeometry(4,0.3,2.2),new THREE.MeshStandardMaterial({map:this.tex,roughness:0.8,metalness:0.2}),cap);
     this.rail=new THREE.InstancedMesh(G.merge([G.box(4,0.55,0.2,0x8a9099,{z:1.2,y:0.1}),G.box(4,0.55,0.2,0x8a9099,{z:-1.2,y:0.1}),G.box(4,0.15,2.6,0x3a3e44,{y:-0.2})]),stdMat,cap);
-    for(const m of [this.top,this.rail]){m.count=0;m.castShadow=true;m.receiveShadow=true;m.frustumCulled=false;scene.add(m);}
+    // docking collar drawn where a belt plugs into a machine
+    this.collar=new THREE.InstancedMesh(G.merge([G.box(0.7,1.9,0.35,0x3a3e44,{y:0.75,z:1.45}),G.box(0.7,1.9,0.35,0x3a3e44,{y:0.75,z:-1.45}),G.box(0.7,0.35,3.25,0x3a3e44,{y:1.6}),
+      G.box(0.74,0.12,3.3,0xffb02e,{y:1.83}),G.box(0.74,1.9,0.1,0xffb02e,{y:0.75,z:1.65}),G.box(0.74,1.9,0.1,0xffb02e,{y:0.75,z:-1.65})]),stdMat,cap*2);
+    for(const m of [this.top,this.rail,this.collar]){m.count=0;m.castShadow=true;m.receiveShadow=true;m.frustumCulled=false;scene.add(m);}
     this.free=[];this.n=0;
     this.items=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial({roughness:0.6,metalness:0.3}),itemCap);
     this.items.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(itemCap*3),3);this.items.count=0;this.items.frustumCulled=false;this.items.castShadow=true;scene.add(this.items);this.itemCap=itemCap;
     this.cols={};for(const k in ITEMS)this.cols[k]=new THREE.Color(ITEMS[k].color);
   }
-  alloc(){const i=this.free.length?this.free.pop():this.n++;this.top.count=this.rail.count=this.n;return i;}
-  release(i){const z=new THREE.Matrix4().makeScale(0,0,0);this.top.setMatrixAt(i,z);this.rail.setMatrixAt(i,z);this.free.push(i);this.top.instanceMatrix.needsUpdate=this.rail.instanceMatrix.needsUpdate=true;}
-  set(i,x,y0,y1,z,dx,dz){
-    const dy=y1-y0,len=Math.hypot(CELL,dy),m=new THREE.Matrix4(),q=new THREE.Quaternion().setFromEuler(new THREE.Euler(0,Math.atan2(-dz,dx),0,'YXZ')),
-      q2=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),Math.atan2(dy,CELL));q.multiply(q2);
-    m.compose(new THREE.Vector3(x,(y0+y1)/2+0.2,z),q,new THREE.Vector3(len/CELL,1,1));
+  alloc(){const i=this.free.length?this.free.pop():this.n++;this.top.count=this.rail.count=this.n;this.collar.count=this.n*2;return i;}
+  release(i){const z=new THREE.Matrix4().makeScale(0,0,0);this.top.setMatrixAt(i,z);this.rail.setMatrixAt(i,z);this.collar.setMatrixAt(2*i,z);this.collar.setMatrixAt(2*i+1,z);this.collar.instanceMatrix.needsUpdate=true;this.free.push(i);this.top.instanceMatrix.needsUpdate=this.rail.instanceMatrix.needsUpdate=true;}
+  // belt slab from point a to point b (both {x,y,z}); collars at either end when docked into a machine
+  set(i,a,b,colA,colB){
+    const dx=b.x-a.x,dz=b.z-a.z,dy=b.y-a.y,flat=Math.hypot(dx,dz),len=Math.hypot(flat,dy),yaw=Math.atan2(-dz,dx);
+    const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(0,yaw,0,'YXZ')),q2=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),Math.atan2(dy,flat));q.multiply(q2);
+    const m=new THREE.Matrix4().compose(new THREE.Vector3((a.x+b.x)/2,(a.y+b.y)/2+0.2,(a.z+b.z)/2),q,new THREE.Vector3(len/CELL,1,1));
     this.top.setMatrixAt(i,m);this.rail.setMatrixAt(i,m);this.top.instanceMatrix.needsUpdate=this.rail.instanceMatrix.needsUpdate=true;
+    const qy=new THREE.Quaternion().setFromEuler(new THREE.Euler(0,yaw,0)),one=new THREE.Vector3(1,1,1),z=new THREE.Matrix4().makeScale(0,0,0);
+    this.collar.setMatrixAt(2*i,colA?new THREE.Matrix4().compose(new THREE.Vector3(a.x,a.y,a.z),qy,one):z);
+    this.collar.setMatrixAt(2*i+1,colB?new THREE.Matrix4().compose(new THREE.Vector3(b.x,b.y,b.z),qy,one):z);
+    this.collar.instanceMatrix.needsUpdate=true;
   }
   scroll(dt){this.tex.offset.x=(this.tex.offset.x-dt*2)%1;}
   beginItems(){this.ic=0;this._m=this._m||new THREE.Matrix4();this._q=this._q||new THREE.Quaternion();this._p=this._p||new THREE.Vector3();this._s=this._s||new THREE.Vector3();}

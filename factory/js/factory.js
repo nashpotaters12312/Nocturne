@@ -79,9 +79,15 @@ export class Factory{
   setBelt(b){
     const [dx,dz]=DIRS[b.rot],cx=b.minCx,cz=b.minCz;
     const hH=this.world.cellH(cx,cz);
-    const y0=this.edgeH(cx,cz,cx-dx,cz-dz),y1=this.edgeH(cx,cz,cx+dx,cz+dz);
-    b.y0=y0+0.25;b.y1=y1+0.25;b.y=hH;
-    this.br.set(b.slot,b.x,b.y0,b.y1,b.z,dx,dz);
+    let y0=this.edgeH(cx,cz,cx-dx,cz-dz)+0.25,y1=this.edgeH(cx,cz,cx+dx,cz+dz)+0.25;
+    // plug into machines: reach 1.6 m into the building at its pad height
+    const fwd=this.at(cx+dx,cz+dz),back=this.at(cx-dx,cz-dz),REACH=1.6;
+    const dockF=fwd&&fwd.type!=='belt',dockB=back&&back.type!=='belt'&&this.frontCells(back).some(c=>c[0]===cx&&c[1]===cz);
+    let ex0=b.x-dx*CELL/2,ez0=b.z-dz*CELL/2,ex1=b.x+dx*CELL/2,ez1=b.z+dz*CELL/2;
+    if(dockF){ex1+=dx*REACH;ez1+=dz*REACH;y1=fwd.y+0.55;}
+    if(dockB){ex0-=dx*REACH;ez0-=dz*REACH;y0=back.y+0.55;}
+    b.y0=y0;b.y1=y1;b.y=hH;b.p0={x:ex0,y:y0,z:ez0};b.p1={x:ex1,y:y1,z:ez1};
+    this.br.set(b.slot,b.p0,b.p1,dockB,dockF);
   }
   // ---- ghost preview
   showGhost(type,pos,rot,valid){
@@ -204,7 +210,7 @@ export class Factory{
     for(const b of this.belts){
       const [dx,dz]=DIRS[b.rot],yaw=Math.atan2(-dz,dx);
       for(const it of b.items){
-        const u=it.t,px=b.x+dx*(u-0.5)*CELL,pz=b.z+dz*(u-0.5)*CELL,py=b.y0+(b.y1-b.y0)*u+0.55;
+        const u=it.t,a=b.p0,c=b.p1,px=a.x+(c.x-a.x)*u,pz=a.z+(c.z-a.z)*u,py=a.y+(c.y-a.y)*u+0.55;
         this.br.item(it.type,px,py,pz,yaw);
       }
     }
