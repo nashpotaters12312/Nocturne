@@ -31,7 +31,7 @@ python3 -m http.server 8123
 ## Building
 - **1–9** hotbar (belt, miner, smelter, constructor, splitter, storage, solar, assembler, depot) or **Q** for the full menu.
 - A grid appears on the terrain; ghosts show an orange **output** arrow and a blue **input** arrow.
-- **Belts:** click the start, then click the end – an L-shaped line previews with its length and cost, builds in one go, and keeps chaining from the end. RMB stops.
+- **Belts:** click a machine to start at its output (or any ground), then click another machine to connect into its input (or any ground) – an L-shaped line previews with its length and cost, builds in one go, and keeps chaining from the end. RMB stops.
 - **Foundations:** machines placed on slopes (up to 14 m of relief) get a concrete foundation automatically.
 - **T** picks the recipe new machines start with. Deconstruct mode (X) highlights the target in red.
 

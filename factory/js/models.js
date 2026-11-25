@@ -107,6 +107,12 @@ export function makeGhost(type){
     if(d.machine||['coal_gen','nuclear','depot','storage','splitter'].includes(type))g.add(arrow(arrowMat.in,-W/2-1.8,1.2));}
   return g;
 }
+export function ioMarker(type){
+  const d=BUILDINGS[type],W=d.w*CELL,g=new THREE.Group();
+  if(!['solar','coal_gen','nuclear','depot','storage'].includes(type))g.add(arrow(arrowMat.out,W/2+1.6,1.2));
+  if(d.machine||['coal_gen','nuclear','depot','storage','splitter'].includes(type))g.add(arrow(arrowMat.in,-W/2-1.8,1.2));
+  g.visible=false;return g;
+}
 export function plinth(w,d,h){
   const W=w*CELL-0.1,D=d*CELL-0.1;
   const m=new THREE.Mesh(G.merge([G.box(W,h,D,0x85837c,{y:-h/2,jit:0.03}),G.box(W+0.3,0.5,D+0.3,0x6d6b66,{y:-0.3})]),stdMat);m.castShadow=m.receiveShadow=true;return m;

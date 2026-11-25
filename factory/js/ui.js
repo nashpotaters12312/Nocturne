@@ -155,7 +155,7 @@ export class UI{
   // ---------- per-frame
   update(dt){
     const p=this.player,g=this.game;this.swingCd-=dt;let showRing=null;
-    this.updateTarget();this.buildInfo='';
+    this.updateTarget();this.buildInfo='';this.factory.showIO(this.mode==='build');
     const bAim=this.bt.update();
     if(this.mode==='build'&&this.active()&&this.type==='belt'){if(!this.ghostMsg)this.prompt=this.buildInfo;}
     else if(this.mode==='build'&&this.active()){

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {BUILDINGS,RECIPES,ITEMS,PURITY,DIRS,CELL,HALF,SEG} from './data.js';
-import {makeModel,makeGhost,setGhostValid,BeltRenderer,lightMats,HEIGHT,plinth} from './models.js';
+import {makeModel,makeGhost,setGhostValid,BeltRenderer,lightMats,HEIGHT,plinth,ioMarker} from './models.js';
 import {Dust} from './dust.js';
 
 const GAP=0.5,BELT_V=1.0;
@@ -30,7 +30,7 @@ export class Factory{
     for(let j=minCz;j<=minCz+d.d;j++)for(let i=minCx;i<=minCx+d.w;i++){const h=w.hgt[j*(SEG+1)+i];mn=Math.min(mn,h);mx=Math.max(mx,h);sum+=h;cnt++;}
     if(type==='belt'?mn<0.5:sum/cnt<0.9)return {ok:false,reason:'Too close to water'};
     // machines sit on an automatic foundation, so only very steep ground is refused
-    if(mx-mn>(type==='belt'?4:14))return {ok:false,reason:'Terrain too steep, even for a foundation'};
+    if(mx-mn>(type==='belt'?12:14))return {ok:false,reason:'Terrain too steep, even for a foundation'};
     for(let j=minCz;j<minCz+d.d;j++)for(let i=minCx;i<minCx+d.w;i++){const o=this.at(i,j);if(o){if(type==='belt'&&o.type==='belt'&&d.w===1)replace=o;else return {ok:false,reason:'Space is occupied'};}}
     let node=null;
     if(d.mine){const [cx,cz]=[(minCx+d.w/2)*CELL-HALF,(minCz+d.d/2)*CELL-HALF];node=this.findNode(cx,cz);
@@ -49,7 +49,8 @@ export class Factory{
     if(d.machine){const rs=recipesFor(d.machine);b.recipe=saved&&saved.rec?RMAP[saved.rec]:null;}
     if(type==='belt'){b.items=[];b.slot=this.br.alloc();this.belts.push(b);}
     else{b.group=makeModel(type);b.group.position.set(cx,b.y,cz);b.group.rotation.y=-rot*Math.PI/2;this.group.add(b.group);
-      const ph=b.y-lowest;if(ph>0.5)b.group.add(plinth(d.w,d.d,ph+1));}
+      const ph=b.y-lowest;if(ph>0.5)b.group.add(plinth(d.w,d.d,ph+1));
+      b.io=ioMarker(type);b.io.visible=!!this.ioOn;b.group.add(b.io);}
     if(chk.node){chk.node.occupied=b;}
     for(let j=minCz;j<minCz+d.d;j++)for(let i=minCx;i<minCx+d.w;i++)this.cells.set(this.key(i,j),b);
     this.list.push(b);
@@ -87,6 +88,7 @@ export class Factory{
     if(this.ghostType!==type){if(this.ghost)this.scene.remove(this.ghost);this.ghost=this.ghosts[type]||(this.ghosts[type]=makeGhost(type));this.scene.add(this.ghost);this.ghostType=type;}
     this.ghost.position.copy(pos);this.ghost.rotation.y=-rot*Math.PI/2;setGhostValid(this.ghost,valid);this.ghost.visible=true;
   }
+  showIO(on){if(this.ioOn===on)return;this.ioOn=on;for(const b of this.list)if(b.io)b.io.visible=on;}
   hideGhost(){if(this.ghost)this.ghost.visible=false;}
   clearGhost(){if(this.ghost){this.scene.remove(this.ghost);this.ghost=null;this.ghostType=null;}}
   // ---- picking

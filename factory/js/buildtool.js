@@ -40,11 +40,34 @@ export class BuildTool{
   hideAll(){this.grid.visible=false;this.hidePool();this.mark.visible=false;this.hl.visible=false;}
   reset(){this.start=null;this.path=[];this.hideAll();}
   cancel(){if(this.start){this.start=null;this.path=[];this.hidePool();this.mark.visible=false;return true;}return false;}
-  planPath(a,b){
+  planPath(a,b,firstAxis,endRot){
     const out=[[a[0],a[1]]];let [x,z]=a;const sx=Math.sign(b[0]-x),sz=Math.sign(b[1]-z);
     const stepX=()=>{while(x!==b[0]&&out.length<MAXLEN){x+=sx;out.push([x,z]);}},stepZ=()=>{while(z!==b[1]&&out.length<MAXLEN){z+=sz;out.push([x,z]);}};
-    if(Math.abs(b[0]-a[0])>=Math.abs(b[1]-a[1])){stepX();stepZ();}else{stepZ();stepX();}
-    return out.map((c,i)=>({cx:c[0],cz:c[1],rot:i<out.length-1?dirTo(c,out[i+1]):out.length>1?dirTo(out[i-1],c):this.ui.rot}));
+    const xFirst=firstAxis?firstAxis==='x':Math.abs(b[0]-a[0])>=Math.abs(b[1]-a[1]);
+    if(xFirst){stepX();stepZ();}else{stepZ();stepX();}
+    const fallback=a.rot!==undefined?a.rot:this.ui.rot;
+    const p=out.map((c,i)=>({cx:c[0],cz:c[1],rot:i<out.length-1?dirTo(c,out[i+1]):out.length>1?dirTo(out[i-1],c):fallback}));
+    if(endRot!==undefined)p[p.length-1].rot=endRot;
+    return p;
+  }
+  // building under the crosshair (not belts)
+  hovered(){const p=this.ui.player,b=this.f.pick(p.eye(),p.forward(),45);return b&&b.type!=='belt'?b:null;}
+  // the free cell in front of a building's output nearest to the aim point
+  outputCell(b,a){
+    const cells=this.f.frontCells(b);let best=null,bd=1e9;
+    for(const [cx,cz] of cells){if(this.f.at(cx,cz)&&this.f.at(cx,cz).type!=='belt')continue;const d=Math.hypot((cx+0.5)*CELL-HALF-a.x,(cz+0.5)*CELL-HALF-a.z);if(d<bd){bd=d;best=[cx,cz];}}
+    if(best)best.rot=b.rot;return best;
+  }
+  // the free cell beside a building closest to `from`, plus the direction pointing into the building
+  inputCell(b,from){
+    const out=[],front=new Set(this.f.frontCells(b).map(c=>c[0]+','+c[1]));
+    for(let i=0;i<b.w;i++){out.push([b.minCx+i,b.minCz-1,1],[b.minCx+i,b.minCz+b.d,3]);}
+    for(let j=0;j<b.d;j++){out.push([b.minCx-1,b.minCz+j,0],[b.minCx+b.w,b.minCz+j,2]);}
+    let best=null,bd=1e9;
+    for(const [cx,cz,r] of out){const o=this.f.at(cx,cz);if(o&&o.type!=='belt')continue;
+      const hasOut=!['solar','coal_gen','nuclear','depot','storage'].includes(b.type);
+      const d=Math.abs(cx-from[0])+Math.abs(cz-from[1])+(hasOut&&front.has(cx+','+cz)?50:0);if(d<bd){bd=d;best={cell:[cx,cz],rot:r};}}
+    return best;
   }
   // evaluate a planned path: which cells can be built with current materials
   check(path){
@@ -62,24 +85,39 @@ export class BuildTool{
     const a=this.aimPoint(),[cx,cz]=this.cellOf(a);this.drawGrid(cx,cz);
     if(ui.type!=='belt'){this.hidePool();this.mark.visible=false;return a;}
     ui.factory.hideGhost();
-    const path=this.start?this.planPath(this.start,[cx,cz]):this.planPath([cx,cz],[cx,cz]);this.path=path;
+    const hb=this.hovered();let path,hint='';
+    if(!this.start){
+      if(hb){const oc=this.outputCell(hb,a);if(oc){path=this.planPath(oc,oc);hint=`Click to start a belt from the <b>${hb.def.name}</b> output`;}}
+      if(!path)path=this.planPath([cx,cz],[cx,cz]);
+    }else{
+      const s=this.start,axis=s.rot!==undefined&&s.fromMachine?(s.rot%2===0?'x':'z'):undefined;
+      if(hb){const ic=this.inputCell(hb,s);if(ic){path=this.planPath(s,ic.cell,axis,ic.rot);hint=`Click to connect into the <b>${hb.def.name}</b>`;this.endTarget=hb;}}
+      if(!path){path=this.planPath(s,[cx,cz],axis);this.endTarget=null;}
+    }
+    this.path=path;this.snapHint=hint;
     const {cost,built}=this.check(path);
     path.forEach((p,i)=>{const g=this.ghost(i);g.visible=true;g.position.set((p.cx+0.5)*CELL-HALF,this.w.cellH(p.cx,p.cz)+0.3,(p.cz+0.5)*CELL-HALF);g.rotation.y=-p.rot*Math.PI/2;setGhostValid(g,p.ok);});
     this.hidePool(path.length);
     if(this.start){const s=this.start;this.mark.visible=true;this.mark.position.set((s[0]+0.5)*CELL-HALF,this.w.cellH(s[0],s[1])+0.5,(s[1]+0.5)*CELL-HALF);}else this.mark.visible=false;
     const bad=path.find(p=>!p.ok);
     ui.ghostMsg=bad&&built===0?bad.reason:'';
-    ui.buildInfo=this.start?`Belt line: <b>${path.length}</b> long · costs <b>${cost}</b> Iron Plate${bad?` · stops early: ${bad.reason}`:''}`:'Click to set the start of a belt line';
+    ui.buildInfo=(this.snapHint&&this.start?this.snapHint+' · ':!this.start&&this.snapHint?this.snapHint:'')+(this.start?`Belt line: <b>${path.length}</b> long · costs <b>${cost}</b> Iron Plate${bad?` · stops early: ${bad.reason}`:''}`:this.snapHint?'':'Click to set the start of a belt line (or click a machine to start at its output)');
     return a;
   }
   click(){
     const ui=this.ui;if(ui.type!=='belt')return false;
     const a=this.aimPoint(),cur=this.cellOf(a);
-    if(!this.start){const c=this.f.canPlace('belt',cur[0],cur[1],ui.rot);if(!c.ok){ui.notify(c.reason,'bad');sfx.bad();return true;}this.start=cur;sfx.ui();return true;}
+    if(!this.start){
+      const hb=this.hovered(),oc=hb&&this.outputCell(hb,a);
+      if(oc){const c=this.f.canPlace('belt',oc[0],oc[1],oc.rot);if(!c.ok){ui.notify(c.reason,'bad');sfx.bad();return true;}this.start=oc;this.start.fromMachine=true;sfx.ui();return true;}
+      const c=this.f.canPlace('belt',cur[0],cur[1],ui.rot);if(!c.ok){ui.notify(c.reason,'bad');sfx.bad();return true;}this.start=cur;sfx.ui();return true;}
     const path=this.path.length?this.path:this.planPath(this.start,cur);this.check(path);
     let n=0,last=null,why='';
     for(const p of path){if(!p.ok){why=p.reason;break;}if(!p.replace)ui.game.inv.pay({iron_plate:1});const b=this.f.place('belt',p.cx,p.cz,p.rot);if(!b)break;last=p;n++;}
-    if(n){sfx.place();this.start=[last.cx,last.cz];ui.rot=last.rot;if(why)ui.notify(`Built ${n} belts, stopped: ${why}`,'bad');}
+    if(n){sfx.place();ui.rot=last.rot;
+      if(this.endTarget&&n===path.length){ui.notify(`Connected to ${this.endTarget.def.name}`,'good');this.start=null;this.endTarget=null;}
+      else{this.start=[last.cx,last.cz];this.start.rot=last.rot;}
+      if(why)ui.notify(`Built ${n} belts, stopped: ${why}`,'bad');}
     else{ui.notify(why||'Cannot build here','bad');sfx.bad();}
     return true;
   }
