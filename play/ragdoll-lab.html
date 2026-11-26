@@ -1,0 +1,438 @@
+<title>Ragdoll Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Inter:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+/* VOICE occasion, a sandbox toy
+   IDEA a clinical crash-test lab where the dummies have real insides
+   PICTURE the whole screen is the lab floor with live ragdolls; organs show in X-ray
+   COLOUR concrete grey, hazard yellow, blood red, x-ray cyan
+   TYPE Chakra Petch + Inter
+   LAYOUT canvas full screen, actions top, tools bottom, vitals panel top-right */
+:root{color-scheme:dark;--ink:#eef1f4;--mute:#9aa3ad;--panel:#15181ccc;--line:#ffffff22;--y:#ffd23f;--red:#e0262f;--cyan:#5ee7ff}
+*{box-sizing:border-box;min-width:0}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;overflow:hidden;background:#2a2d31}
+body{color:var(--ink);font:14px/1.35 Inter,system-ui,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+button{font:inherit;color:inherit;cursor:pointer;border:0}
+.top{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));display:flex;gap:6px;align-items:center;flex-wrap:wrap;pointer-events:none}
+.top>*{pointer-events:auto}
+.logo{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;letter-spacing:.02em;background:var(--y);color:#111;padding:4px 10px;border-radius:6px;margin-right:4px}
+.ab{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-weight:800;min-height:40px;backdrop-filter:blur(6px)}
+.ab.on{background:var(--cyan);color:#062a33;border-color:var(--cyan)}
+.tools{position:fixed;left:0;right:0;bottom:0;padding:8px max(10px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 8px) max(10px,env(safe-area-inset-left,0px));display:flex;gap:6px;overflow-x:auto;background:linear-gradient(transparent,#0009 40%);scrollbar-width:none;touch-action:pan-x}
+.tool{flex:none;width:68px;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 4px;border-radius:12px;background:var(--panel);border:1px solid var(--line);font-weight:800;font-size:11.5px;backdrop-filter:blur(6px)}
+.tool svg{width:28px;height:28px}
+.tool.on{background:var(--y);color:#111;border-color:var(--y)}
+.hint{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 86px);background:#000a;border-radius:10px;padding:6px 12px;font-weight:700;color:#dfe5ea;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+#panel{position:fixed;right:max(10px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 60px);width:250px;max-height:calc(100% - 190px);overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;backdrop-filter:blur(8px);touch-action:pan-y}
+#panel h2{font-family:'Chakra Petch',sans-serif;font-size:18px;margin:0;display:flex;justify-content:space-between;align-items:center}
+#panel h2 button{background:none;color:var(--mute);font-size:20px;line-height:1;padding:0 4px}
+.st{display:inline-block;font-weight:800;font-size:12px;border-radius:6px;padding:2px 8px;margin:6px 0 8px}
+.vit{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.vit div{background:#ffffff0d;border-radius:8px;padding:6px;text-align:center}
+.vit b{display:block;font-size:17px;font-variant-numeric:tabular-nums}
+.vit span{font-size:11px;color:var(--mute)}
+.sec{font-family:'Chakra Petch',sans-serif;font-size:13px;color:var(--y);margin:8px 0 4px}
+.org{display:grid;grid-template-columns:96px 1fr 34px;gap:6px;align-items:center;font-size:12.5px;padding:2px 0}
+.org i{height:6px;border-radius:3px;background:#ffffff14;overflow:hidden;display:block}
+.org i u{display:block;height:100%;text-decoration:none}
+.org em{font-style:normal;text-align:right;font-variant-numeric:tabular-nums;color:var(--mute)}
+.ok{color:#6fe39a}.bad{color:#ff6b6b}.warn{color:#ffd23f}
+@media (max-width:640px){#panel{left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));width:auto;top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 128px);max-height:38vh}.hint{bottom:calc(env(safe-area-inset-bottom,0px) + 84px)}.logo{font-size:16px}}
+</style>
+
+<canvas id="c"></canvas>
+<div class="top">
+  <div class="logo">RAGDOLL LAB</div>
+  <button class="ab" data-act="spawn">+ Person</button>
+  <button class="ab" data-act="xray" id="xrayB">X-ray</button>
+  <button class="ab" data-act="slow" id="slowB">Slow-mo</button>
+  <button class="ab" data-act="clean">Clean</button>
+  <button class="ab" data-act="reset">Reset</button>
+</div>
+<div id="panel" hidden></div>
+<div class="hint" id="hint"></div>
+<div class="tools" id="tools"></div>
+
+<script>
+{
+const $=id=>document.getElementById(id);
+const cv=$('c'),cx=cv.getContext('2d');
+const dec=document.createElement('canvas'),dx=dec.getContext('2d');
+let W=0,H=0,DPR=1,GY=0;
+const rand=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0],clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const GRAV=1500,STEP=1/120;
+
+/* ---------- tools ---------- */
+const TOOLS=[
+['drag','Drag','<path d="M8 13V5a2 2 0 0 1 4 0v6M12 11V4a2 2 0 0 1 4 0v7M16 11V6a2 2 0 0 1 4 0v8c0 5-3 8-7 8s-6-2-8-5l-2-4a2 2 0 0 1 3-2l2 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>','Drag people around. Tap someone to see their insides.'],
+['knife','Knife','<path d="M3 21 14 10l3 3L6 21z" fill="currentColor"/><path d="M14 10l6-7 1 1-4 9z" fill="currentColor" opacity=".6"/>','Swipe across limbs to slice. Keep slicing to cut them off.'],
+['gun','Gun','<path d="M2 8h17l2-2v6h-6l-1 2h-3l-1 7H6l1-7H2z" fill="currentColor"/>','Tap or hold to shoot. Bullets hit organs, bones and arteries.'],
+['bomb','Bomb','<circle cx="11" cy="14" r="7" fill="currentColor"/><path d="M15 8l3-4" stroke="currentColor" stroke-width="2"/><circle cx="19" cy="3" r="1.6" fill="#ff8a3d"/>','Tap to drop a bomb. It explodes after 2 seconds.'],
+['saw','Saw','<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="2.5 1.8"/><circle cx="12" cy="12" r="3" fill="currentColor"/>','Tap to place a spinning saw blade.'],
+['spikes','Spikes','<path d="M2 20 6 6l4 14M8 20l4-14 4 14M14 20l4-14 4 14" fill="currentColor"/>','Tap the floor to place spikes. Drop people on them.'],
+['box','Platform','<rect x="2" y="9" width="20" height="6" rx="1" fill="currentColor"/>','Tap to place a platform.'],
+['heal','Heal','<rect x="9" y="2" width="6" height="12" rx="1" fill="currentColor"/><path d="M12 14v8M7 4h10" stroke="currentColor" stroke-width="2"/><path d="M5 17h14" stroke="#6fe39a" stroke-width="3"/>','Tap someone to heal organs, bones and blood, or bring them back.'],
+['adren','Adrenaline','<rect x="9" y="2" width="6" height="12" rx="1" fill="currentColor"/><path d="M12 14v8M7 4h10" stroke="currentColor" stroke-width="2"/><path d="M14 15l-4 4h4l-3 4" stroke="#ffd23f" stroke-width="2" fill="none"/>','Tap someone for a burst of strength and a racing heart.'],
+['del','Delete','<path d="M5 7h14l-1 14H6zM9 7V4h6v3M3 7h18" fill="none" stroke="currentColor" stroke-width="2"/>','Tap a person or object to remove it.'],
+];
+let tool='drag';
+$('tools').innerHTML=TOOLS.map(t=>`<button class="tool ${t[0]===tool?'on':''}" data-tool="${t[0]}"><svg viewBox="0 0 24 24">${t[2]}</svg>${t[1]}</button>`).join('');
+function setTool(t){tool=t;for(const b of document.querySelectorAll('.tool'))b.classList.toggle('on',b.dataset.tool===t);$('hint').textContent=TOOLS.find(x=>x[0]===t)[3]}
+
+/* ---------- world ---------- */
+let people=[],props=[],blood=[],fx=[],debris=[],xray=false,slow=false,sel=null,shake=0,nextId=1;
+const SKIN=['#f1c7a3','#e0ac85','#c68b62','#9c6a45','#6e4a32','#f5d6bd'];
+const SHIRT=['#3a7bd5','#d94848','#2fa36b','#e0a526','#7a5bd6','#e9ecef','#2b2f36','#e86fa3'];
+const PANTS=['#2b3a55','#3c3c3c','#5b4636','#1f4e5f','#4a4f57'];
+const NAMES=['Dummy','Test Subject','Volunteer','Intern','Steve','Carl','Dana','Morgan','Rex','Jo','Pat','Sam'];
+
+function mkPt(x,y,r){return{x,y,px:x,py:y,r,ground:false,stuck:null}}
+function spawn(x){
+  if(people.length>=10)people.shift();
+  const sk=pick(SKIN),sh=pick(SHIRT),pa=pick(PANTS),y=GY;
+  const P=[[0,-152,12],[0,-130,6],[0,-100,9],[0,-70,9],[-3,-102,5],[-5,-76,5],[3,-102,5],[5,-76,5],[-5,-35,6],[-7,-2,5],[5,-35,6],[7,-2,5]].map(([a,b,r])=>mkPt(x+a,y+b,r));
+  const S=(name,a,b,th,col,layer,bone,art)=>({name,a:P[a],b:P[b],len:0,th,col,layer,bone:100,boneName:bone,art,hp:100,cutA:false,cutB:false,burn:0,orig:name,slashT:0});
+  const segs=[S('neck',0,1,10,sk,1,'Neck vertebrae','carotid'),S('chest',1,2,28,sh,1,'Ribs','aorta'),S('belly',2,3,25,sh,1,'Pelvis','aorta'),
+    S('uarmL',1,4,11,sh,0,'Left humerus','brachL'),S('farmL',4,5,9,sk,0,'Left forearm',null),S('uarmR',1,6,11,sh,2,'Right humerus','brachR'),S('farmR',6,7,9,sk,2,'Right forearm',null),
+    S('thighL',3,8,14,pa,0,'Left femur','femL'),S('shinL',8,9,12,pa,0,'Left shin',null),S('thighR',3,10,14,pa,2,'Right femur','femR'),S('shinR',10,11,12,pa,2,'Right shin',null)];
+  for(const s of segs)s.len=Math.hypot(s.a.x-s.b.x,s.a.y-s.b.y);
+  const br=(a,b,st,dep)=>({a:P[a],b:P[b],len:Math.hypot(P[a].x-P[b].x,P[a].y-P[b].y),st,dep});
+  const p={id:nextId++,name:pick(NAMES)+' #'+(nextId-1),P,head:P[0],segs,braces:[br(1,3,1,['chest','belly']),br(0,2,.35,['neck','chest']),br(4,2,.05,['uarmL']),br(6,2,.05,['uarmR'])],
+    skin:sk,hair:pick(['#2b1d14','#5a3a1e','#c9a15a','#111','#7a2e14','#888']),blood:100,oxy:100,org:{brain:100,heart:100,lungL:100,lungR:100,spineU:100,spineD:100,guts:100},
+    art:{carotid:1,aorta:1,brachL:1,brachR:1,femL:1,femR:1},lost:{},wounds:[],alive:true,heartOn:true,bpm:72,beat:0,adren:0,pain:0,getup:3,face:Math.random()<.5?-1:1,deathCause:'',decap:false};
+  people.push(p);return p;
+}
+function segsOf(pt,p){return p.segs.filter(s=>s.a===pt||s.b===pt)}
+
+/* ---------- damage model ---------- */
+function addWound(p,s,t,rate,art){p.wounds.push({s,t,rate,art,acc:0});if(p.wounds.length>40)p.wounds.shift()}
+function organHit(p,s,t,power,src){
+  const msg=[];const dmg=v=>v*power;
+  const hurt=(k,v)=>{p.org[k]=Math.max(0,p.org[k]-dmg(v))};
+  const o=s.orig;
+  if(o==='neck'){if(Math.random()<.55&&p.art.carotid){p.art.carotid=0;addWound(p,s,t,5,true)}if(Math.random()<.35)hurt('spineU',rand(50,100));}
+  else if(o==='chest'){if(t>.2&&t<.85&&Math.random()<.35)hurt('heart',rand(45,100));hurt(Math.random()<.5?'lungL':'lungR',rand(30,80));if(Math.random()<.22)hurt('spineU',rand(40,100));if(Math.random()<.15&&p.art.aorta){p.art.aorta=0;addWound(p,s,t,6,true)}}
+  else if(o==='belly'){hurt('guts',rand(25,60));if(Math.random()<.22)hurt('spineD',rand(40,100));if(Math.random()<.12&&p.art.aorta){p.art.aorta=0;addWound(p,s,t,6,true)}}
+  else if(s.art&&p.art[s.art]&&Math.random()<.3){p.art[s.art]=0;addWound(p,s,t,3.5,true)}
+  if(Math.random()<.45)s.bone=Math.max(0,s.bone-dmg(rand(40,110)));
+  p.pain=Math.min(100,p.pain+30*power);
+}
+function headHit(p,power){p.org.brain=Math.max(0,p.org.brain-rand(60,130)*power);p.pain=100;addWound(p,p.segs.find(s=>s.orig==='neck'&&!s.cutA)||p.segs[0],0,1.2,false)}
+function sever(p,s,t){
+  if(s.cutA&&s.cutB)return;t=clamp(t,.25,.75);
+  const A=s.a,B=s.b,x=A.x+(B.x-A.x)*t,y=A.y+(B.y-A.y)*t;
+  const c1=mkPt(x,y,s.th/2),c2=mkPt(x,y,s.th/2);c1.px=A.px+(B.px-A.px)*t;c1.py=A.py+(B.py-A.py)*t;c2.px=c1.px;c2.py=c1.py;
+  p.P.push(c1,c2);
+  const s2=Object.assign({},s,{a:c2,b:B,len:s.len*(1-t),cutA:true,name:s.name+'x'+Math.random().toString(36).slice(2,6),loose:true});
+  s.b=c1;s.len*=t;s.cutB=true;p.segs.push(s2);
+  p.braces=p.braces.filter(b=>!b.dep.includes(s.name));
+  // move wounds beyond cut
+  for(const w of p.wounds)if(w.s===s&&w.t>t){w.s=s2;w.t=(w.t-t)/(1-t);w.loose=true}else if(w.s===s)w.t=w.t/t;
+  const o=s.orig;
+  for(let i=0;i<30;i++)spray(x,y,rand(-300,300),rand(-400,100));
+  addWound(p,s,1,o==='neck'?9:o==='chest'||o==='belly'?8:s.art?5:2.2,true);
+  p.wounds.push({s:s2,t:0,rate:2,art:false,acc:0,loose:true,left:4});
+  if(o==='neck'){p.decap=true;die(p,'Decapitated')}
+  if(o==='chest'){p.org.spineU=0;p.art.aorta=0}
+  if(o==='belly'){p.org.spineD=0;p.org.guts=0;p.art.aorta=0;for(let i=0;i<6;i++)debris.push({x,y,vx:rand(-200,200),vy:rand(-300,-50),t:6,col:'#b5475a',r:rand(4,8),gut:1})}
+  if(s.art)p.art[s.art]=0;
+  const side=o.endsWith('L')?'L':'R';
+  if(/arm/.test(o))p.lost['arm'+side]=1;
+  if(/thigh|shin/.test(o))p.lost['leg'+side]=1;
+  p.pain=100;p.getup=0;
+}
+function die(p,cause){if(!p.alive)return;p.alive=false;p.heartOn=false;p.deathCause=cause}
+function impulse(pt,vx,vy){pt.px-=vx*STEP;pt.py-=vy*STEP}
+function spray(x,y,vx,vy,big){if(blood.length>1800)blood.shift();blood.push({x,y,vx,vy,r:big?rand(2,3.5):rand(1.2,2.6),t:4})}
+
+/* ---------- physics ---------- */
+let grab=null,mouse={x:0,y:0,down:false,lx:0,ly:0},gunT=0;
+function physics(dt){
+  for(const p of people){
+    // muscles / balance
+    const alive=p.alive&&p.conscious,spU=p.org.spineU>0,spD=p.org.spineD>0;
+    const legsOk=!p.lost.legL&&!p.lost.legR&&spD&&spU&&p.segs.filter(s=>/thigh|shin/.test(s.orig)&&!s.loose).every(s=>s.bone>0);
+    const str=alive?clamp((p.blood-35)/45,0,1)*Math.min(1,p.oxy/50)*(p.adren>0?1.6:1):0;
+    const [hd,nk,ch,pv,,hL,,hR,kL,fL,kR,fR]=p.P;
+    if(str>0&&legsOk){
+      const grounded=fL.ground||fR.ground;
+      p.getup=Math.min(3,p.getup+dt*(p.adren>0?2:1));
+      const k=str*Math.min(1,p.getup/2.5);
+      if(grounded&&k>0){
+        const fx=(fL.x+fR.x)/2,fy=Math.max(fL.y,fR.y);
+        const sp=(pt,tx,ty,kk,c,up)=>{const vx=(pt.x-pt.px)/STEP,vy=(pt.y-pt.py)/STEP;const ax=kk*(tx-pt.x)-c*vx,ay=kk*(ty-pt.y)-c*vy-up;pt.px-=ax*STEP*STEP;pt.py-=ay*STEP*STEP};
+        sp(pv,fx,fy-64,700*k,45,GRAV*.5*k);sp(nk,pv.x+p.face*2,pv.y-60,900*k,50,GRAV*.5*k);sp(hd,nk.x+p.face*2,nk.y-22,700*k,40,GRAV*.4*k);
+        sp(kL,(pv.x+fL.x)/2+p.face*3,(pv.y+fL.y)/2,500*k,35,0);sp(kR,(pv.x+fR.x)/2+p.face*3,(pv.y+fR.y)/2,500*k,35,0);
+        sp(fL,fx-8,fL.y,120*k,20,0);sp(fR,fx+8,fR.y,120*k,20,0);
+      }
+    }else if(p.getup>0&&!alive)p.getup=0;
+    if(alive&&spU&&p.pain>40&&Math.random()<dt*6){const pt=pick([hL,hR,fL,fR]);impulse(pt,rand(-250,250),rand(-200,50))}
+    if(alive&&spU&&!p.lost.armL&&!p.lost.armR&&str>0){const kk=.01*str;hL.x+=(nk.x-10*p.face-hL.x)*kk*.3;hR.x+=(nk.x+10*p.face-hR.x)*kk*.3}
+    for(const pt of p.P){
+      const vx=(pt.x-pt.px)*.998,vy=(pt.y-pt.py)*.998;pt.px=pt.x;pt.py=pt.y;pt.x+=vx;pt.y+=vy+GRAV*dt*dt;pt.prevG=pt.ground;pt.ground=false;
+    }
+  }
+  for(const b of debris){b.vy+=GRAV*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;if(b.y>GY-b.r){b.y=GY-b.r;b.vy*=-.2;b.vx*=.7}}
+  for(const pr of props)if(pr.k==='bomb'){pr.vy+=GRAV*dt;pr.y+=pr.vy*dt;if(pr.y>GY-10){pr.y=GY-10;pr.vy=0}for(const q of props)if(q.k==='box'&&pr.x>q.x&&pr.x<q.x+q.w&&pr.y>q.y-10&&pr.y<q.y+q.h){pr.y=q.y-10;pr.vy=0}}
+  // grab
+  if(grab){const g=grab.pt;if(g.stuck&&Math.hypot(mouse.x-g.x,mouse.y-g.y)>70){g.stuck=null;for(const s of segsOf(g,grab.p))addWound(grab.p,s,s.a===g?0:1,2.5,false);grab.p.pain=100}
+    g.x+=(mouse.x-g.x)*.35;g.y+=(mouse.y-g.y)*.35}
+  // constraints
+  for(let it=0;it<8;it++){
+    for(const p of people){
+      for(const s of p.segs)solve(s.a,s.b,s.len,1);
+      for(const b of p.braces)solve(b.a,b.b,b.len,b.st);
+      for(const pt of p.P){if(pt.stuck){pt.x=pt.stuck.x;pt.y=pt.stuck.y}collide(pt,p)}
+    }
+  }
+  // ragdoll vs ragdoll
+  for(let i=0;i<people.length;i++)for(let j=i+1;j<people.length;j++)for(const a of people[i].P)for(const b of people[j].P){const dx=a.x-b.x,dy=a.y-b.y,m=a.r+b.r;if(dx*dx+dy*dy<m*m){const d=Math.hypot(dx,dy)||1,o=(m-d)/2;a.x+=dx/d*o;a.y+=dy/d*o;b.x-=dx/d*o;b.y-=dy/d*o}}
+  // hazards
+  for(const pr of props){
+    if(pr.k==='saw'){pr.a+=dt*25;for(const p of people)for(const s of p.segs){const h=distSeg(pr.x,pr.y,s.a,s.b);if(h.d<pr.r+s.th/2){
+      s.hp-=260*dt;p.pain=100;p.getup=0;const ex=s.a.x+(s.b.x-s.a.x)*h.t,ey=s.a.y+(s.b.y-s.a.y)*h.t;if(Math.random()<.6)spray(ex,ey,rand(-200,200)+(ey<pr.y?-300:300),rand(-400,-50),1);
+      for(const pt of [s.a,s.b]){const dx=pt.x-pr.x,dy=pt.y-pr.y,d=Math.hypot(dx,dy)||1;if(d<pr.r+pt.r+6){pt.x+=dx/d*2;pt.y+=dy/d*2;impulse(pt,-dy/d*300,dx/d*300)}}
+      if(Math.random()<dt*3)organHit(p,s,h.t,.3);
+      if(s.hp<=0&&!(s.cutA&&h.t<.3)&&!(s.cutB&&h.t>.7)){s.hp=60;sever(p,s,h.t)}}}}
+  }
+}
+function solve(a,b,len,st){const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1e-6,diff=(d-len)/d*st;
+  const wa=a.stuck?0:1,wb=b.stuck?0:1,ws=wa+wb;if(!ws)return;
+  a.x+=dx*diff*wa/ws;a.y+=dy*diff*wa/ws;b.x-=dx*diff*wb/ws;b.y-=dy*diff*wb/ws}
+function collide(pt,p){
+  if(pt.x<pt.r){pt.x=pt.r;pt.px=pt.x+(pt.x-pt.px)*.3}if(pt.x>W-pt.r){pt.x=W-pt.r;pt.px=pt.x+(pt.x-pt.px)*.3}
+  if(pt.y>GY-pt.r){land(pt,p);pt.y=GY-pt.r;pt.px=pt.x-(pt.x-pt.px)*.55;pt.py=pt.y+(pt.y-pt.py)*.15;pt.ground=true}
+  for(const pr of props){
+    if(pr.k==='box'){if(pt.x>pr.x-pt.r&&pt.x<pr.x+pr.w+pt.r&&pt.y>pr.y-pt.r&&pt.y<pr.y+pr.h+pt.r){const l=pt.x-(pr.x-pt.r),r=pr.x+pr.w+pt.r-pt.x,t=pt.y-(pr.y-pt.r),b=pr.y+pr.h+pt.r-pt.y,m=Math.min(l,r,t,b);
+      if(m===t){land(pt,p);pt.y=pr.y-pt.r;pt.px=pt.x-(pt.x-pt.px)*.55;pt.py=pt.y;pt.ground=true}else if(m===b){pt.y=pr.y+pr.h+pt.r;pt.py=pt.y}else if(m===l){pt.x=pr.x-pt.r;pt.px=pt.x}else{pt.x=pr.x+pr.w+pt.r;pt.px=pt.x}}}
+    else if(pr.k==='spikes'&&!pt.stuck){const lx=pt.x-pr.x;if(lx>0&&lx<pr.w){const ph=((lx%20)+20)%20,sh=40*(1-Math.abs(ph-10)/10),sy=GY-sh;
+      if(pt.y+pt.r>sy){const vy=(pt.y-pt.py)/STEP;if(vy>220&&Math.abs(ph-10)<6){pt.stuck={x:pt.x,y:Math.max(pt.y,GY-30)};for(const s of segsOf(pt,p)){addWound(p,s,s.a===pt?0:1,1.8,false);organHit(p,s,s.a===pt?.1:.9,.6)}if(pt===p.head)headHit(p,.8);p.pain=100;p.getup=0;for(let i=0;i<12;i++)spray(pt.x,pt.y,rand(-150,150),rand(-300,-50))}
+      else if(pt.y>sy-pt.r){pt.y=sy-pt.r;pt.py=pt.y;pt.ground=true}}}}
+  }
+}
+function land(pt,p){const vy=(pt.y-pt.py)/STEP;if(pt.prevG||vy<1000)return;const f=(vy-1000)/900;p.pain=Math.min(100,p.pain+f*60);p.getup=0;
+  for(const s of segsOf(pt,p))if(Math.random()<f)s.bone=Math.max(0,s.bone-rand(40,100)*f);if(pt===p.head)p.org.brain=Math.max(0,p.org.brain-f*70);
+  if(f>.5)for(let i=0;i<6;i++)spray(pt.x,pt.y,rand(-150,150),rand(-200,-20))}
+function distSeg(x,y,a,b){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy||1;let t=((x-a.x)*dx+(y-a.y)*dy)/l;t=clamp(t,0,1);const px=a.x+dx*t,py=a.y+dy*t;return{d:Math.hypot(x-px,y-py),t}}
+
+/* ---------- body sim ---------- */
+function bodySim(p,dt){
+  if(p.adren>0)p.adren-=dt;
+  const lungs=(p.org.lungL+p.org.lungR)/200;
+  if(p.org.brain<=0)die(p,p.decap?'Decapitated':'Brain destroyed');
+  if(p.alive){
+    if(p.org.heart<=0&&p.heartOn){p.heartOn=false;p.deathCause='Heart destroyed'}
+    if(p.blood<15&&p.heartOn){p.heartOn=false;p.deathCause='Bled out'}
+    if(p.heartOn){p.oxy+=(lungs*14-(1-lungs)*10-(p.org.spineU<=0&&p.org.spineU!==undefined&&Math.random()<0?0:0))*dt;if(lungs<.15)p.deathCause='Suffocated'}else p.oxy-=11*dt;
+    p.oxy=clamp(p.oxy,0,100);if(p.oxy<=0)die(p,p.deathCause||'No oxygen');
+  }
+  p.conscious=p.alive&&p.heartOn&&p.oxy>30&&p.blood>38&&p.org.brain>30;
+  p.bpm=p.heartOn?Math.round(clamp(68+(100-p.blood)*1.5+p.pain*.25+(p.adren>0?55:0)+(p.org.heart<60?20:0),40,210)):0;
+  if(p.heartOn){p.beat+=dt*p.bpm/60;if(p.beat>=1){p.beat-=1;p.pulse=1;for(const w of p.wounds)if(w.art&&!w.loose&&w.rate>0)jet(p,w)}}
+  if(p.pulse>0)p.pulse-=dt*4;
+  // bleeding
+  let rate=0;for(const w of p.wounds){
+    if(w.loose){if(w.left>0){w.left-=dt;w.acc+=dt*6;}}else{rate+=w.rate;w.acc+=w.rate*dt*(p.heartOn?1.4:.25)*3;if(!w.art)w.rate*=Math.exp(-dt/45)}
+    while(w.acc>1){w.acc-=1;const q=wpos(w);spray(q.x,q.y,rand(-30,30),rand(-30,20))}}
+  p.blood=Math.max(0,p.blood-rate*dt*(p.heartOn?.55:.08));
+  p.wounds=p.wounds.filter(w=>w.loose?w.left>0:(w.art||w.rate>.08));
+  if(p.alive&&!p.conscious)p.pain=Math.max(0,p.pain-dt*30);else p.pain=Math.max(0,p.pain-dt*(p.adren>0?40:8));
+  if(!p.alive)p.oxy=Math.max(0,p.oxy-11*dt);
+}
+function wpos(w){const s=w.s;return{x:s.a.x+(s.b.x-s.a.x)*w.t,y:s.a.y+(s.b.y-s.a.y)*w.t}}
+function jet(p,w){const q=wpos(w),s=w.s;let dx=s.b.x-s.a.x,dy=s.b.y-s.a.y;const l=Math.hypot(dx,dy)||1;dx/=l;dy/=l;
+  let ox,oy;if(w.t>=.99){ox=dx;oy=dy}else if(w.t<=.01){ox=-dx;oy=-dy}else{const sg=Math.random()<.5?1:-1;ox=-dy*sg;oy=dx*sg}
+  const pw=clamp(p.blood/100,.3,1)*(p.adren>0?1.4:1);for(let i=0;i<12;i++){const sp=rand(180,520)*pw;spray(q.x,q.y,ox*sp+rand(-60,60),oy*sp+rand(-80,40),1)}}
+
+/* ---------- tools ---------- */
+function nearestPt(x,y,max){let best=null,bd=max;for(const p of people)for(const pt of p.P){const d=Math.hypot(pt.x-x,pt.y-y)-pt.r;if(d<bd){bd=d;best={p,pt}}}
+  if(!best)for(const p of people)for(const s of p.segs){const h=distSeg(x,y,s.a,s.b);if(h.d<s.th/2+10){best={p,pt:h.t<.5?s.a:s.b};break}}return best}
+function hitAt(x,y,pad){let best=null,bd=1e9;for(const p of people){if(Math.hypot(p.head.x-x,p.head.y-y)<p.head.r+pad&&!p.decapPiece)return{p,head:true};
+  for(const s of p.segs){const h=distSeg(x,y,s.a,s.b),m=h.d-s.th/2;if(m<pad&&m<bd){bd=m;best={p,s,t:h.t}}}}return best}
+function shoot(x,y){
+  const fromLeft=x<W/2,sx=fromLeft?0:W,dir=fromLeft?1:-1;
+  const h=hitAt(x,y,4);fx.push({k:'tracer',x1:sx,y1:y+rand(-2,2),x2:h?x:(fromLeft?W:0),y2:y,t:.08,max:.08});snd(150,.08,'sawtooth',.06,60,'gun');shake=Math.max(shake,2);
+  if(!h){dx.fillStyle='#111a';dx.beginPath();dx.arc(x,y,2.5,0,7);dx.fill();return}
+  const p=h.p;sel=p;p.getup=Math.min(p.getup,1.2);
+  if(h.head){headHit(p,1);impulse(p.head,dir*700,-100);for(let i=0;i<22;i++)spray(x,y,dir*rand(100,500)+rand(-80,80),rand(-250,80),1);if(p.org.brain<=0)die(p,'Shot in the head')}
+  else{const s=h.s;organHit(p,s,h.t,1);addWound(p,s,h.t,1.4,false);s.hp-=34;impulse(s.a,dir*380,-40);impulse(s.b,dir*380,-40);
+    for(let i=0;i<14;i++)spray(x,y,dir*rand(80,420)+rand(-60,60),rand(-200,60),1);for(let i=0;i<6;i++)spray(x,y,-dir*rand(40,160),rand(-120,40));
+    if(s.hp<=0&&!/chest|belly/.test(s.orig))sever(p,s,h.t)}
+}
+function slice(x0,y0,x1,y1){
+  const n=Math.max(1,Math.ceil(Math.hypot(x1-x0,y1-y0)/6));
+  for(const p of people)for(const s of p.segs){if(s.slashT>0)continue;for(let i=0;i<=n;i++){const x=x0+(x1-x0)*i/n,y=y0+(y1-y0)*i/n,h=distSeg(x,y,s.a,s.b);
+    if(h.d<s.th/2+3){s.slashT=.18;sel=p;s.hp-=/chest|belly/.test(s.orig)?22:40;addWound(p,s,h.t,1.1,false);organHit(p,s,h.t,.45);p.pain=Math.min(100,p.pain+25);
+      const ux=(x1-x0),uy=(y1-y0),l=Math.hypot(ux,uy)||1;for(let k=0;k<12;k++)spray(x,y,ux/l*rand(60,300)+rand(-50,50),uy/l*rand(60,300)-rand(0,120),1);
+      impulse(s.a,ux/l*120,uy/l*120);impulse(s.b,ux/l*120,uy/l*120);snd(900,.06,'triangle',.03,300,'cut');
+      if(s.hp<=0&&!(h.t<.15&&s.cutA)&&!(h.t>.85&&s.cutB)){s.hp=70;sever(p,s,h.t)}break}}}
+}
+function explode(x,y){
+  fx.push({k:'boom',x,y,t:.45,max:.45});shake=16;snd(70,.6,'sawtooth',.12,30,'boom');
+  for(let i=0;i<40;i++)debris.push({x,y,vx:rand(-700,700),vy:rand(-800,-100),t:2,col:pick(['#ffb03b','#ff6b1a','#555']),r:rand(1.5,4)});
+  dx.fillStyle='#0006';dx.beginPath();dx.ellipse(x,GY,70,10,0,0,7);dx.fill();
+  const R=170;
+  for(const p of people){let hit=false;
+    for(const pt of p.P){const ddx=pt.x-x,ddy=pt.y-y,d=Math.hypot(ddx,ddy)||1;if(d<R*1.4){const f=(1-d/(R*1.4));impulse(pt,ddx/d*f*2200,ddy/d*f*2200-f*600);pt.stuck=null}}
+    for(const s of [...p.segs]){const h=distSeg(x,y,s.a,s.b);if(h.d>R)continue;hit=true;const f=1-h.d/R;s.burn=Math.min(1,s.burn+f);s.hp-=f*170;s.bone-=f*140;s.bone=Math.max(0,s.bone);
+      if(Math.random()<f)organHit(p,s,h.t,f);if(s.hp<=0&&Math.random()<.85)sever(p,s,rand(.3,.7))}
+    if(Math.hypot(p.head.x-x,p.head.y-y)<R*.6)headHit(p,1-Math.hypot(p.head.x-x,p.head.y-y)/(R*.6));
+    if(hit){p.pain=100;p.getup=0;p.blood-=5}}
+}
+function applySyringe(p,k){
+  if(k==='heal'){for(const o in p.org)p.org[o]=100;for(const s of p.segs){s.bone=100;s.hp=100;s.burn=0}p.blood=100;p.oxy=100;p.pain=0;
+    p.wounds=p.wounds.filter(w=>w.loose);for(const w of p.wounds)w.left=0;for(const a in p.art)if(!/brach|fem/.test(a)||!p.lost[(a.startsWith('brach')?'arm':'leg')+a.slice(-1)])p.art[a]=1;
+    if(!p.decap){p.alive=true;p.heartOn=true;p.deathCause='';p.getup=0}for(const pt of p.P)pt.stuck=null;
+    fx.push({k:'ring',x:p.P[2].x,y:p.P[2].y,col:'#6fe39a',t:.5,max:.5});snd(600,.3,'sine',.06,1200,'heal')}
+  else{p.adren=15;if(p.alive&&p.org.heart>0&&!p.heartOn&&p.blood>15){p.heartOn=true;p.oxy=Math.max(p.oxy,20)}p.pain=0;p.getup=3;fx.push({k:'ring',x:p.P[2].x,y:p.P[2].y,col:'#ffd23f',t:.5,max:.5});snd(300,.3,'square',.04,900,'adr')}
+}
+
+/* ---------- input ---------- */
+cv.addEventListener('pointerdown',e=>{initAudio();mouse.x=mouse.lx=e.clientX;mouse.y=mouse.ly=e.clientY;mouse.down=true;try{cv.setPointerCapture(e.pointerId)}catch(_){}
+  const x=e.clientX,y=e.clientY;
+  if(tool==='drag'){const n=nearestPt(x,y,30);if(n){grab=n;sel=n.p}else{const h=hitAt(x,y,10);sel=h?h.p:sel}}
+  else if(tool==='gun'){shoot(x,y);gunT=.14}
+  else if(tool==='bomb')props.push({k:'bomb',x,y,vy:0,t:2});
+  else if(tool==='saw')props.push({k:'saw',x,y,r:36,a:0});
+  else if(tool==='spikes')props.push({k:'spikes',x:clamp(x-30,0,W-60),w:60});
+  else if(tool==='box')props.push({k:'box',x:clamp(x-70,0,W-140),y:Math.min(y,GY-30),w:140,h:18});
+  else if(tool==='heal'||tool==='adren'){const h=hitAt(x,y,16);if(h){sel=h.p;applySyringe(h.p,tool)}}
+  else if(tool==='del'){let pi=props.findIndex(pr=>pr.k==='box'?x>pr.x&&x<pr.x+pr.w&&y>pr.y-10&&y<pr.y+pr.h+10:pr.k==='spikes'?x>pr.x&&x<pr.x+pr.w&&y>GY-60:Math.hypot(pr.x-x,pr.y-y)<(pr.r||20)+10);
+    if(pi>=0)props.splice(pi,1);else{const h=hitAt(x,y,14);if(h){people=people.filter(p=>p!==h.p);if(sel===h.p)sel=null}}}
+});
+cv.addEventListener('pointermove',e=>{mouse.lx=mouse.x;mouse.ly=mouse.y;mouse.x=e.clientX;mouse.y=e.clientY;if(mouse.down&&tool==='knife'){slice(mouse.lx,mouse.ly,mouse.x,mouse.y);fx.push({k:'slash',x1:mouse.lx,y1:mouse.ly,x2:mouse.x,y2:mouse.y,t:.2,max:.2})}});
+const up=()=>{mouse.down=false;grab=null};addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+document.addEventListener('click',e=>{const t=e.target.closest('[data-tool]');if(t){setTool(t.dataset.tool);return}const a=e.target.closest('[data-act]');if(!a)return;
+  switch(a.dataset.act){
+  case 'spawn':sel=spawn(rand(80,W-80));break;
+  case 'xray':xray=!xray;$('xrayB').classList.toggle('on',xray);break;
+  case 'slow':slow=!slow;$('slowB').classList.toggle('on',slow);break;
+  case 'clean':dx.clearRect(0,0,dec.width,dec.height);blood=[];debris=[];break;
+  case 'reset':people=[];props=[];blood=[];debris=[];dx.clearRect(0,0,dec.width,dec.height);sel=null;setup();break;
+  case 'close':sel=null;break;
+  }});
+
+/* ---------- audio ---------- */
+let actx=null;const lastS={};
+function initAudio(){try{if(!actx)actx=new (window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume()}catch(e){}}
+function snd(f,d,t,v,sl,n){if(!actx)return;const now=actx.currentTime;if(lastS[n]&&now-lastS[n]<.05)return;lastS[n]=now;
+  try{const o=actx.createOscillator(),g=actx.createGain();o.type=t;o.frequency.setValueAtTime(f,now);if(sl)o.frequency.exponentialRampToValueAtTime(sl,now+d);g.gain.setValueAtTime(v,now);g.gain.exponentialRampToValueAtTime(.0001,now+d);o.connect(g);g.connect(actx.destination);o.start(now);o.stop(now+d)}catch(e){}}
+
+/* ---------- drawing ---------- */
+function resize(){const oW=W,oGY=GY;DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR|0;cv.height=H*DPR|0;GY=H-Math.max(110,H*.16);
+  const old=document.createElement('canvas');old.width=dec.width;old.height=dec.height;if(dec.width)old.getContext('2d').drawImage(dec,0,0);
+  dec.width=W*DPR|0;dec.height=H*DPR|0;dx.setTransform(DPR,0,0,DPR,0,0);if(old.width)dx.drawImage(old,0,(GY-oGY),old.width/DPR,old.height/DPR);
+  for(const p of people)for(const pt of p.P){if(pt.y>GY){pt.y=pt.py=GY-pt.r}pt.x=clamp(pt.x,pt.r,W-pt.r)}}
+function bg(){
+  const g=cx.createLinearGradient(0,0,0,GY);g.addColorStop(0,'#3b4047');g.addColorStop(1,'#2c3036');cx.fillStyle=g;cx.fillRect(0,0,W,GY);
+  cx.strokeStyle='#ffffff0d';cx.lineWidth=1;for(let x=0;x<W;x+=80){cx.beginPath();cx.moveTo(x,0);cx.lineTo(x,GY);cx.stroke()}for(let y=GY;y>0;y-=60){cx.beginPath();cx.moveTo(0,y);cx.lineTo(W,y);cx.stroke()}
+  cx.fillStyle='#ffffff0a';cx.font="700 120px 'Chakra Petch',sans-serif";cx.textAlign='center';cx.fillText('TEST',W/2,GY*.45);
+  cx.fillStyle='#1d2024';cx.fillRect(0,GY,W,H-GY);
+  for(let x=-40;x<W+40;x+=40){cx.fillStyle='#ffd23f';cx.beginPath();cx.moveTo(x,GY);cx.lineTo(x+20,GY);cx.lineTo(x+10,GY+10);cx.lineTo(x-10,GY+10);cx.fill()}
+  cx.fillStyle='#16181b';cx.fillRect(0,GY+10,W,H-GY);
+}
+function drawSeg(s,a){cx.lineCap='round';cx.strokeStyle=s.col;cx.globalAlpha=a;cx.lineWidth=s.th;cx.beginPath();cx.moveTo(s.a.x,s.a.y);cx.lineTo(s.b.x,s.b.y);cx.stroke();
+  if(s.burn>0){cx.strokeStyle=`rgba(20,10,5,${s.burn*.7})`;cx.stroke()}cx.globalAlpha=1;
+  for(const [cut,pt] of [[s.cutA,s.a],[s.cutB,s.b]])if(cut){cx.fillStyle='#9e0f1a';cx.beginPath();cx.arc(pt.x,pt.y,s.th/2+.5,0,7);cx.fill();cx.fillStyle='#f3eadb';cx.beginPath();cx.arc(pt.x,pt.y,Math.max(2,s.th/5),0,7);cx.fill()}}
+function drawHead(p,a){const h=p.head,nk=p.segs.find(s=>s.orig==='neck'&&s.a===h);const ang=nk?Math.atan2(nk.b.y-h.y,nk.b.x-h.x)-Math.PI/2:0;
+  cx.save();cx.translate(h.x,h.y);cx.rotate(ang);cx.globalAlpha=a;cx.fillStyle=p.skin;cx.beginPath();cx.arc(0,0,h.r,0,7);cx.fill();
+  cx.fillStyle=p.hair;cx.beginPath();cx.arc(0,-1,h.r+.5,Math.PI*1.05,Math.PI*1.95);cx.fill();
+  const f=p.face;cx.fillStyle='#1b1b1b';cx.strokeStyle='#1b1b1b';cx.lineWidth=1.6;
+  if(!p.alive){cx.beginPath();cx.moveTo(f*5-2,-2);cx.lineTo(f*5+2,2);cx.moveTo(f*5+2,-2);cx.lineTo(f*5-2,2);cx.stroke()}
+  else if(!p.conscious){cx.beginPath();cx.moveTo(f*5-2.5,0);cx.lineTo(f*5+2.5,0);cx.stroke()}else{cx.beginPath();cx.arc(f*5,-1,1.7,0,7);cx.fill()}
+  cx.beginPath();if(p.alive&&p.pain>50)cx.arc(f*6,6,2.2,0,7);else{cx.moveTo(f*3,6);cx.lineTo(f*8,5.5)}cx.stroke();
+  if(p.org.brain<100){cx.fillStyle=`rgba(150,0,10,${(1-p.org.brain/100)*.8})`;cx.beginPath();cx.arc(0,-2,h.r*.7,0,7);cx.fill()}
+  cx.globalAlpha=1;cx.restore()}
+function drawXray(p){
+  cx.lineCap='round';
+  for(const s of p.segs){const ax=s.a.x,ay=s.a.y,bx=s.b.x,by=s.b.y;
+    if(s.orig==='chest'){const mx=(ax+bx)/2,my=(ay+by)/2,ang=Math.atan2(by-ay,bx-ax);cx.save();cx.translate(mx,my);cx.rotate(ang-Math.PI/2);
+      cx.strokeStyle=s.bone>0?'#e8f6ff':'#ff7b7b';cx.lineWidth=1.6;for(let i=-2;i<=2;i++){cx.beginPath();cx.ellipse(0,i*5.5,12,3.2,0,0,Math.PI*2);cx.stroke()}
+      const lg=(v,x)=>{cx.fillStyle=v>0?`rgba(255,${120+v},${150+v*.5},.75)`:'#4a1c22';cx.beginPath();cx.ellipse(x,-2,5,11,0,0,7);cx.fill()};lg(p.org.lungL,-6);lg(p.org.lungR,6);
+      const pu=1+(p.pulse>0?p.pulse*.25:0);cx.fillStyle=p.org.heart>0?(p.heartOn?'#ff2d3d':'#7a1018'):'#2a0a0d';cx.beginPath();cx.ellipse(-2,3,4.8*pu,5.5*pu,.3,0,7);cx.fill();cx.restore()}
+    if(s.orig==='belly'){const mx=(ax+bx)/2,my=(ay+by)/2;cx.fillStyle=p.org.guts>0?'#d98a8f88':'#5a1c2288';cx.beginPath();cx.ellipse(mx,my,9,10,0,0,7);cx.fill()}
+    // spine / bones
+    const broken=s.bone<=0,col=broken?'#ff7b7b':'#e8f6ff';
+    if(s.orig==='chest'||s.orig==='belly'||s.orig==='neck'){const sp=s.orig==='belly'?p.org.spineD:p.org.spineU;cx.strokeStyle=sp>0?'#bfe9ff':'#ff3b3b';cx.lineWidth=3;cx.setLineDash([3,2]);
+      const off=-p.face*(s.orig==='neck'?0:6);cx.beginPath();cx.moveTo(ax+off,ay);cx.lineTo(bx+off,by);cx.stroke();cx.setLineDash([])}
+    else{cx.strokeStyle=col;cx.lineWidth=Math.max(2.5,s.th*.3);if(broken){const mx=(ax+bx)/2,my=(ay+by)/2;cx.beginPath();cx.moveTo(ax,ay);cx.lineTo(mx-2,my-1);cx.moveTo(mx+2,my+1);cx.lineTo(bx,by);cx.stroke()}else{cx.beginPath();cx.moveTo(ax,ay);cx.lineTo(bx,by);cx.stroke()}}
+    // arteries
+    if(s.art||s.orig==='farmL'||s.orig==='farmR'||s.orig==='shinL'||s.orig==='shinR'){const ok=s.art?p.art[s.art]:1;cx.strokeStyle=ok?'#ff3048':'#5a0a12';cx.lineWidth=1.4;const nx=-(by-ay),ny=bx-ax,l=Math.hypot(nx,ny)||1,o=s.th*.25;cx.beginPath();cx.moveTo(ax+nx/l*o,ay+ny/l*o);cx.lineTo(bx+nx/l*o,by+ny/l*o);cx.stroke()}
+  }
+  const h=p.head;cx.strokeStyle=p.org.brain>0?'#e8f6ff':'#ff7b7b';cx.lineWidth=2;cx.beginPath();cx.arc(h.x,h.y,h.r-2,0,7);cx.stroke();cx.fillStyle=p.org.brain>0?`rgba(255,170,190,${.4+p.org.brain/250})`:'#4a1c22';cx.beginPath();cx.arc(h.x-p.face*1.5,h.y-2,h.r-5,0,7);cx.fill();
+}
+function drawPerson(p){
+  const a=xray?.28:1;
+  for(const L of [0,1,2]){for(const s of p.segs)if(s.layer===L){if(L===0&&!xray){const c=s.col;s.col=shade(c);drawSeg(s,a);s.col=c}else drawSeg(s,a)}if(L===1&&!p.decapHead)drawHead(p,a)}
+  for(const w of p.wounds){const q=wpos(w);cx.fillStyle='#6a0610';cx.beginPath();cx.arc(q.x,q.y,w.art?3.2:2.2,0,7);cx.fill()}
+  for(const pt of p.P)if(pt.stuck){cx.fillStyle='#9e0f1a';cx.beginPath();cx.arc(pt.x,pt.y,pt.r*.7,0,7);cx.fill()}
+  if(xray)drawXray(p);
+  if(p===sel){cx.fillStyle='#ffd23f';cx.beginPath();cx.moveTo(p.head.x,p.head.y-p.head.r-8);cx.lineTo(p.head.x-7,p.head.y-p.head.r-20);cx.lineTo(p.head.x+7,p.head.y-p.head.r-20);cx.fill()}
+  const lab=!p.alive?'DEAD':!p.conscious?'Unconscious':p.wounds.some(w=>w.art&&!w.loose)?'Bleeding out':null;
+  if(lab){cx.font="700 12px 'Chakra Petch',sans-serif";cx.textAlign='center';cx.fillStyle=!p.alive?'#ff5b5b':'#ffd23f';cx.fillText(lab,p.head.x,p.head.y-p.head.r-(p===sel?24:8))}
+}
+const shadeCache={};function shade(c){if(shadeCache[c])return shadeCache[c];const n=parseInt(c.slice(1),16),f=.72;return shadeCache[c]=`rgb(${(n>>16)*f|0},${(n>>8&255)*f|0},${(n&255)*f|0})`}
+function drawProps(t){
+  for(const pr of props){
+    if(pr.k==='box'){cx.fillStyle='#5b6470';cx.fillRect(pr.x,pr.y,pr.w,pr.h);cx.fillStyle='#ffd23f';for(let x=pr.x;x<pr.x+pr.w;x+=20){cx.beginPath();cx.moveTo(x,pr.y);cx.lineTo(x+10,pr.y);cx.lineTo(x+4,pr.y+pr.h);cx.lineTo(x-6,pr.y+pr.h);cx.fill()}cx.strokeStyle='#111';cx.lineWidth=2;cx.strokeRect(pr.x,pr.y,pr.w,pr.h)}
+    else if(pr.k==='spikes'){for(let x=pr.x;x<pr.x+pr.w;x+=20){const g=cx.createLinearGradient(x,0,x+20,0);g.addColorStop(0,'#cfd6de');g.addColorStop(1,'#7b848f');cx.fillStyle=g;cx.beginPath();cx.moveTo(x,GY);cx.lineTo(x+10,GY-40);cx.lineTo(x+20,GY);cx.fill()}}
+    else if(pr.k==='saw'){cx.save();cx.translate(pr.x,pr.y);cx.rotate(pr.a);cx.fillStyle='#c7ced6';cx.beginPath();for(let i=0;i<24;i++){const a=i/24*Math.PI*2;cx.lineTo(Math.cos(a)*pr.r,Math.sin(a)*pr.r);cx.lineTo(Math.cos(a+.13)*(pr.r-7),Math.sin(a+.13)*(pr.r-7))}cx.fill();cx.fillStyle='#8a939c';cx.beginPath();cx.arc(0,0,pr.r*.55,0,7);cx.fill();cx.fillStyle='#333';cx.beginPath();cx.arc(0,0,6,0,7);cx.fill();cx.restore()}
+    else if(pr.k==='bomb'){cx.fillStyle='#222';cx.beginPath();cx.arc(pr.x,pr.y,10,0,7);cx.fill();cx.fillStyle=Math.sin(t*(30-pr.t*10))>0?'#ff3b3b':'#ffb03b';cx.beginPath();cx.arc(pr.x+6,pr.y-10,3,0,7);cx.fill();
+      cx.fillStyle='#fff';cx.font="700 11px Inter";cx.textAlign='center';cx.fillText(pr.t.toFixed(1),pr.x,pr.y-18)}
+  }
+}
+function drawBlood(){cx.fillStyle='#b3101c';for(const b of blood){cx.beginPath();cx.arc(b.x,b.y,b.r,0,7);cx.fill()}
+  for(const d of debris){cx.fillStyle=d.col;cx.beginPath();cx.arc(d.x,d.y,d.r,0,7);cx.fill()}}
+function stepBlood(dt){
+  for(const b of blood){b.vy+=GRAV*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;b.t-=dt;let hit=false;
+    if(b.y>GY){b.y=GY;hit=true}else if(b.x<0||b.x>W)hit=true;else for(const pr of props)if(pr.k==='box'&&b.x>pr.x&&b.x<pr.x+pr.w&&b.y>pr.y&&b.y<pr.y+pr.h){b.y=pr.y;hit=true;break}
+    if(hit){b.t=0;dx.fillStyle=`rgba(${120+Math.random()*40|0},8,14,.85)`;dx.beginPath();dx.ellipse(b.x,b.y,b.r*rand(1.5,3.5),b.r*rand(.5,1),0,0,7);dx.fill()}}
+  blood=blood.filter(b=>b.t>0);
+  for(const d of debris)d.t-=dt;debris=debris.filter(d=>d.t>0);
+}
+function drawFx(){for(const f of fx){const p=1-f.t/f.max;
+  if(f.k==='tracer'){cx.strokeStyle=`rgba(255,230,150,${1-p})`;cx.lineWidth=2;cx.beginPath();cx.moveTo(f.x1,f.y1);cx.lineTo(f.x2,f.y2);cx.stroke()}
+  else if(f.k==='slash'){cx.strokeStyle=`rgba(255,255,255,${.8*(1-p)})`;cx.lineWidth=3;cx.beginPath();cx.moveTo(f.x1,f.y1);cx.lineTo(f.x2,f.y2);cx.stroke()}
+  else if(f.k==='boom'){cx.fillStyle=`rgba(255,200,80,${1-p})`;cx.beginPath();cx.arc(f.x,f.y,40+p*150,0,7);cx.fill();cx.fillStyle=`rgba(255,255,230,${(1-p)*.9})`;cx.beginPath();cx.arc(f.x,f.y,30+p*60,0,7);cx.fill()}
+  else if(f.k==='ring'){cx.strokeStyle=f.col;cx.globalAlpha=1-p;cx.lineWidth=4;cx.beginPath();cx.arc(f.x,f.y,20+p*80,0,7);cx.stroke();cx.globalAlpha=1}}}
+
+/* ---------- panel ---------- */
+const bar=(v)=>{const c=v>60?'#6fe39a':v>25?'#ffd23f':'#ff5b5b';return `<i><u style="width:${clamp(v,0,100)}%;background:${c}"></u></i><em>${Math.round(Math.max(0,v))}</em>`};
+function panel(){
+  const el=$('panel');if(!sel||!people.includes(sel)){el.hidden=true;return}el.hidden=false;const p=sel;
+  const st=!p.alive?['DEAD · '+p.deathCause,'#5a1016','#ffb3b3']:!p.conscious?['UNCONSCIOUS','#5a4a10','#ffe08a']:p.blood<60?['CRITICAL','#5a2a10','#ffc08a']:p.pain>50?['IN PAIN','#3a3a14','#fff3a0']:['STABLE','#123a24','#9ff0c0'];
+  const o=p.org;const arts=[['Carotid','carotid'],['Aorta','aorta'],['L brachial','brachL'],['R brachial','brachR'],['L femoral','femL'],['R femoral','femR']];
+  const bones=p.segs.filter(s=>!s.loose);
+  el.innerHTML=`<h2>${p.name}<button data-act="close" aria-label="Close">×</button></h2><span class="st" style="background:${st[1]};color:${st[2]}">${st[0]}</span>
+  <div class="vit"><div><b class="${p.heartOn?'ok':'bad'}">${p.heartOn?p.bpm:'—'}</b><span>heart bpm</span></div><div><b class="${p.blood>60?'ok':p.blood>30?'warn':'bad'}">${Math.round(p.blood)}%</b><span>blood</span></div><div><b class="${p.oxy>60?'ok':p.oxy>30?'warn':'bad'}">${Math.round(p.oxy)}%</b><span>oxygen</span></div></div>
+  <div class="sec">Organs</div>${[['Brain',o.brain],['Heart',o.heart],['Left lung',o.lungL],['Right lung',o.lungR],['Upper spine',o.spineU],['Lower spine',o.spineD],['Guts',o.guts]].map(([n,v])=>`<div class="org"><span>${n}</span>${bar(v)}</div>`).join('')}
+  <div class="sec">Bones</div>${bones.map(s=>`<div class="org"><span>${s.boneName}</span>${s.bone<=0?'<i><u style="width:100%;background:#ff5b5b"></u></i><em class="bad">BROKE</em>':bar(s.bone)}</div>`).join('')}
+  <div class="sec">Arteries</div>${arts.map(([n,k])=>`<div class="org"><span>${n}</span><span></span><em class="${p.art[k]?'ok':'bad'}">${p.art[k]?'OK':'CUT'}</em></div>`).join('')}
+  <div class="sec">Body</div><div class="org"><span>Limbs</span><span></span><em>${4-Object.keys(p.lost).length}/4</em></div><div class="org"><span>Open wounds</span><span></span><em>${p.wounds.filter(w=>!w.loose).length}</em></div><div class="org"><span>Pain</span>${bar(p.pain)}</div>${p.adren>0?`<div class="org"><span>Adrenaline</span><span></span><em class="warn">${Math.ceil(p.adren)}s</em></div>`:''}`;
+}
+
+/* ---------- loop ---------- */
+let last=performance.now(),acc=0,panelT=0;
+function frame(now){const real=Math.min(.05,(now-last)/1000);last=now;
+  try{
+    const dt=real*(slow?.25:1);acc+=dt;let n=0;
+    while(acc>=STEP&&n<8){physics(STEP);for(const p of people){bodySim(p,STEP);for(const s of p.segs)if(s.slashT>0)s.slashT-=STEP}stepBlood(STEP);
+      for(const pr of props)if(pr.k==='bomb'){pr.t-=STEP;if(pr.t<=0){pr.dead=1;explode(pr.x,pr.y)}}props=props.filter(p=>!p.dead);
+      acc-=STEP;n++}
+    if(acc>STEP*8)acc=0;
+    if(mouse.down&&tool==='gun'){gunT-=real;if(gunT<=0){gunT=.14;shoot(mouse.x,mouse.y)}}
+    for(const f of fx)f.t-=real;fx=fx.filter(f=>f.t>0);
+    cx.setTransform(DPR,0,0,DPR,0,0);const sx=shake>0?rand(-shake,shake):0,sy=shake>0?rand(-shake,shake):0;shake=Math.max(0,shake-real*40);
+    cx.translate(sx,sy);bg();cx.drawImage(dec,0,0,W,H);drawProps(now/1000);for(const p of people)drawPerson(p);drawBlood();drawFx();
+    if(grab){cx.strokeStyle='#ffffff88';cx.lineWidth=1.5;cx.setLineDash([4,4]);cx.beginPath();cx.moveTo(grab.pt.x,grab.pt.y);cx.lineTo(mouse.x,mouse.y);cx.stroke();cx.setLineDash([])}
+    panelT-=real;if(panelT<=0){panelT=.2;panel()}
+  }catch(err){console.error(err)}
+  requestAnimationFrame(frame)}
+function setup(){const n=W<600?2:3;for(let i=0;i<n;i++)spawn(W*(i+1)/(n+1));props.push({k:'spikes',x:clamp(W*(W<600?.5:.62)-30+(W<600?W*.25:0),0,W-60),w:60});if(W>=600)props.push({k:'box',x:W*.04,y:GY-240,w:150,h:18});sel=people[0]}
+window.__rl={get people(){return people},get props(){return props},shoot,explode,slice,sever,applySyringe,physics,bodySim};
+resize();addEventListener('resize',resize);setup();setTool('drag');requestAnimationFrame(frame);
+}
+</script>
