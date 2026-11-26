@@ -1,0 +1,378 @@
+<title>Tiny Town Tycoon</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;800;900&display=swap" rel="stylesheet">
+<style>
+/* VOICE occasion, a cosy idle game
+   IDEA a toy town main street that fills up with your businesses as you grow
+   PICTURE the live street: buildings rise, coins pop, cars and people pass, day turns to night
+   COLOUR sky blue, money green, gold, cream cards, navy ink
+   TYPE Fredoka + Nunito
+   LAYOUT money header, street band, tabs and a list of businesses below; same order on phone */
+:root{color-scheme:light;--ink:#23263a;--mute:#646a86;--card:#fff;--bg:#eaf4ff;--green:#2fbf71;--gold:#ffc93c;--blue:#3aa0ff;--pink:#ff6fa5;--purple:#8a6cff;--line:#d9e2f2}
+*{box-sizing:border-box;min-width:0}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:16px/1.4 Nunito,system-ui,sans-serif;overflow-x:clip}
+button{font:inherit;color:inherit;cursor:pointer;border:0}
+h1,h2,h3{font-family:Fredoka,Nunito,sans-serif;margin:0;line-height:1.1}
+.pad{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.inner{max-width:1100px;margin:0 auto}
+header{position:sticky;top:0;z-index:5;background:var(--ink);color:#fff;padding-top:calc(env(safe-area-inset-top,0px) + 10px);padding-bottom:10px}
+body::before{content:"";position:fixed;left:0;right:0;top:0;height:env(safe-area-inset-top,0px);background:var(--ink);z-index:6}
+.hd{display:flex;align-items:center;gap:12px 18px;flex-wrap:wrap}
+.brand{font-family:Fredoka,sans-serif;font-weight:700;font-size:18px;color:var(--gold);white-space:nowrap}
+.cash{font-family:Fredoka,sans-serif;font-weight:700;font-size:clamp(28px,6vw,40px);line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ps{color:#9fe3bd;font-weight:800;font-size:15px;white-space:nowrap}
+.hd .sp{flex:1}
+.boost{display:flex;gap:8px;flex-wrap:wrap}
+.chip{background:#ffffff1a;border-radius:12px;padding:6px 12px;font-weight:900;font-size:14px;white-space:nowrap;min-height:40px;display:inline-flex;align-items:center;gap:6px}
+button.chip{background:var(--gold);color:var(--ink)}
+button.chip:disabled{background:#ffffff26;color:#fff9;cursor:default}
+.street{position:relative;overflow-x:auto;overflow-y:hidden;touch-action:pan-x;background:#bfe3ff;border-bottom:4px solid var(--ink)}
+.street canvas{display:block;height:clamp(190px,32vh,280px)}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-top:14px;padding-bottom:4px;scrollbar-width:none}
+.tab{flex:none;background:#fff;border:2px solid var(--line);border-radius:14px;padding:8px 14px;font-weight:900;white-space:nowrap;min-height:44px;position:relative}
+.tab.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.tab .dot{position:absolute;top:-5px;right:-5px;min-width:20px;height:20px;border-radius:10px;background:var(--pink);color:#fff;font-size:12px;line-height:20px;padding:0 5px}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 0}
+.seg{display:flex;background:#fff;border:2px solid var(--line);border-radius:12px;overflow:hidden}
+.seg button{padding:7px 14px;font-weight:900;min-height:40px;background:#fff}
+.seg button.on{background:var(--green);color:#fff}
+.note{color:var(--mute);font-weight:800;font-size:14px}
+main{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 40px)}
+.list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,500px),1fr));gap:10px}
+.biz{display:grid;grid-template-columns:64px minmax(0,1fr);gap:4px 12px;align-items:center;background:#fff;border:2px solid var(--line);border-radius:18px;padding:10px 12px}
+.biz.locked{opacity:.6}
+.ico{grid-row:span 2;width:64px;height:64px;border-radius:16px;display:grid;place-items:center;position:relative;border:3px solid var(--ink)}
+.ico svg{width:40px;height:40px}
+.ico b{position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:8px;font-size:12px;padding:0 6px;line-height:18px;white-space:nowrap}
+button.ico:active{transform:scale(.94)}
+.ico.tap::after{content:"Tap";position:absolute;top:-8px;right:-8px;background:var(--pink);color:#fff;font-size:11px;font-weight:900;border-radius:8px;padding:0 5px;line-height:17px}
+.bt{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.bt h3{font-size:18px;font-weight:600}
+.bt span{font-weight:900;color:var(--green);font-variant-numeric:tabular-nums;white-space:nowrap}
+.prog{position:relative;height:22px;border-radius:11px;background:#edf1f8;overflow:hidden}
+.prog i{position:absolute;inset:0;background:linear-gradient(90deg,#55d98f,var(--green));transform-origin:left;transform:scaleX(0)}
+.prog span{position:relative;display:block;font-size:12px;font-weight:900;line-height:22px;padding:0 9px;color:var(--ink);font-variant-numeric:tabular-nums}
+.br{grid-column:1/-1;display:flex;gap:8px;align-items:center;margin-top:4px}
+.buy{flex:1;background:var(--gold);border:2px solid var(--ink);border-radius:12px;padding:6px 10px;font-weight:900;min-height:44px;display:flex;justify-content:space-between;align-items:center;gap:8px;box-shadow:0 3px 0 var(--ink)}
+.buy:active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.buy:disabled{background:#eef0f6;color:#9aa0b8;border-color:#c9cfe0;box-shadow:none;cursor:default}
+.buy small{font-weight:800;opacity:.8}
+.ms{flex:none;width:92px;font-size:12px;font-weight:800;color:var(--mute);text-align:right;line-height:1.2}
+.ms i{display:block;height:6px;border-radius:3px;background:#edf1f8;margin-top:3px;overflow:hidden}
+.ms i u{display:block;height:100%;background:var(--purple);text-decoration:none}
+.card{background:#fff;border:2px solid var(--line);border-radius:18px;padding:14px}
+.row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:2px dashed var(--line)}
+.row:first-child{border-top:0}
+.row .info{flex:1}
+.row h3{font-size:17px;font-weight:600}
+.row p{margin:2px 0 0;color:var(--mute);font-weight:700;font-size:14px}
+.sm{flex:none;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;border:2px solid var(--ink)}
+.sm svg{width:28px;height:28px}
+.btn{background:var(--gold);border:2px solid var(--ink);border-radius:12px;padding:8px 14px;font-weight:900;min-height:44px;white-space:nowrap;box-shadow:0 3px 0 var(--ink)}
+.btn:disabled{background:#eef0f6;color:#9aa0b8;border-color:#c9cfe0;box-shadow:none;cursor:default}
+.btn.g{background:var(--green);color:#fff}
+.btn.p{background:var(--pink);color:#fff}
+.done{color:var(--green);font-weight:900;white-space:nowrap}
+.achs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.ach{border:2px solid var(--line);border-radius:14px;padding:10px;background:#fff}
+.ach.got{background:#fff6d6;border-color:var(--gold)}
+.ach h3{font-size:15px;font-weight:600}
+.ach p{margin:2px 0 0;font-size:13px;color:var(--mute);font-weight:700}
+.ach i{display:block;height:6px;border-radius:3px;background:#edf1f8;margin-top:6px;overflow:hidden}
+.ach i u{display:block;height:100%;background:var(--gold)}
+.hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.stat{background:#fff;border:2px solid var(--line);border-radius:16px;padding:12px}
+.stat b{display:block;font-family:Fredoka,sans-serif;font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+.stat span{color:var(--mute);font-weight:800;font-size:13px}
+table{width:100%;border-collapse:collapse;font-weight:800}
+td{padding:9px 0;border-top:2px dashed var(--line)}
+tr:first-child td{border-top:0}
+td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+#modal{position:fixed;inset:0;z-index:20;background:#23263a99;display:grid;place-items:center;padding:16px}
+#modal[hidden]{display:none}
+.mc{width:min(440px,100%);background:#fff;border:3px solid var(--ink);border-radius:24px;padding:22px;text-align:center;box-shadow:0 8px 0 var(--ink)}
+.mc h2{font-size:30px}
+.mc p{color:var(--mute);font-weight:800}
+.mc .big{font-family:Fredoka,sans-serif;font-size:40px;font-weight:700;color:var(--green);margin:8px 0}
+#toasts{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;z-index:15;pointer-events:none;width:min(92vw,420px)}
+.toast{background:var(--ink);color:#fff;border-radius:14px;padding:10px 16px;font-weight:900;box-shadow:0 6px 20px #0003;animation:tin .25s ease-out;text-align:center}
+.toast b{color:var(--gold)}
+@keyframes tin{from{transform:translateY(20px);opacity:0}}
+@media (prefers-reduced-motion:reduce){.toast{animation:none}}
+</style>
+
+<header class="pad"><div class="inner hd">
+  <div><div class="brand">Tiny Town Tycoon</div><div class="cash" id="cash">$0</div><div class="ps" id="ps">$0 / sec</div></div>
+  <div class="sp"></div>
+  <div class="boost"><button class="chip" id="boostB" data-act="boost">Coffee break: 2x for 5 min</button><span class="chip" id="rushC" hidden></span><span class="chip" id="multC"></span></div>
+</div></header>
+<div class="street" id="street"><canvas id="c"></canvas></div>
+<main class="pad"><div class="inner">
+  <div class="tabs" id="tabs"></div>
+  <div id="view"></div>
+</div></main>
+<div id="modal" hidden><div class="mc" id="mc"></div></div>
+<div id="toasts"></div>
+
+<script>
+{
+const $=id=>document.getElementById(id);
+const KEY='tinyTownTycoon1';
+/* ---------- data ---------- */
+const BIZ=[
+{name:'Lemonade Stand',cost:4,k:1.07,rev:1,time:1,col:'#ffe066',ic:'cup'},
+{name:'Donut Cart',cost:60,k:1.15,rev:60,time:3,col:'#ff9ec7',ic:'donut'},
+{name:'Car Wash',cost:720,k:1.14,rev:540,time:6,col:'#7cc8ff',ic:'drop'},
+{name:'Pizza Place',cost:8640,k:1.13,rev:4320,time:12,col:'#ff8a5c',ic:'pizza'},
+{name:'Arcade',cost:103680,k:1.12,rev:51840,time:24,col:'#b39bff',ic:'joy'},
+{name:'Cinema',cost:1.24e6,k:1.11,rev:6.2e5,time:60,col:'#ff6b6b',ic:'film'},
+{name:'Hotel',cost:1.5e7,k:1.10,rev:7.5e6,time:180,col:'#8fd3a8',ic:'bed'},
+{name:'Theme Park',cost:1.8e8,k:1.09,rev:9e7,time:600,col:'#ffb347',ic:'wheel'},
+{name:'Airport',cost:2.15e9,k:1.08,rev:1.1e9,time:1800,col:'#a8b5d6',ic:'plane'},
+{name:'Rocket Base',cost:2.6e10,k:1.07,rev:2.9e10,time:5400,col:'#c4c9db',ic:'rocket'},
+];
+const MS=[25,50,100,200,300,400,500,600,700,800,900,1000];
+const IC={
+cup:'<path d="M6 7h12l-1.5 13h-9z" fill="#fff" stroke="#23263a" stroke-width="2"/><path d="M7 11h10" stroke="#ffd43b" stroke-width="4"/><path d="M13 7l3-5" stroke="#23263a" stroke-width="2"/>',
+donut:'<circle cx="12" cy="12" r="9" fill="#e8b071" stroke="#23263a" stroke-width="2"/><path d="M4 11a8 8 0 0 1 16 0c-1 2-3 0-4 2s-3 0-4 1-3-1-4 0-3-1-4-3z" fill="#ff6fa5"/><circle cx="12" cy="12" r="3" fill="#fff" stroke="#23263a" stroke-width="2"/>',
+drop:'<path d="M12 2s7 8 7 13a7 7 0 0 1-14 0c0-5 7-13 7-13z" fill="#3aa0ff" stroke="#23263a" stroke-width="2"/><circle cx="9.5" cy="15" r="2" fill="#fff"/>',
+pizza:'<path d="M3 5c6-3 12-3 18 0L12 22z" fill="#ffd166" stroke="#23263a" stroke-width="2"/><path d="M3 5c6-3 12-3 18 0l-1.2 2.4C14 5 10 5 4.2 7.4z" fill="#d08a3c"/><circle cx="10" cy="10" r="1.6" fill="#e63946"/><circle cx="14" cy="12" r="1.6" fill="#e63946"/><circle cx="12" cy="16" r="1.4" fill="#e63946"/>',
+joy:'<rect x="3" y="12" width="18" height="8" rx="3" fill="#8a6cff" stroke="#23263a" stroke-width="2"/><path d="M12 12V6" stroke="#23263a" stroke-width="2"/><circle cx="12" cy="5" r="3" fill="#ff6fa5" stroke="#23263a" stroke-width="2"/><circle cx="17" cy="16" r="1.5" fill="#ffd43b"/>',
+film:'<rect x="3" y="6" width="18" height="13" rx="2" fill="#23263a"/><rect x="6" y="9" width="12" height="7" fill="#ffd43b"/><path d="M5 3l4 3M11 3l4 3M17 3l3 3" stroke="#23263a" stroke-width="2"/>',
+bed:'<path d="M3 18V8M3 14h18v4" stroke="#23263a" stroke-width="2" fill="none"/><rect x="9" y="10" width="12" height="4" rx="1" fill="#3aa0ff" stroke="#23263a" stroke-width="2"/><circle cx="6" cy="12" r="2" fill="#fff" stroke="#23263a" stroke-width="2"/>',
+wheel:'<circle cx="12" cy="11" r="8" fill="none" stroke="#23263a" stroke-width="2"/><path d="M12 3v16M4 11h16M6 5l12 12M18 5 6 17" stroke="#23263a" stroke-width="1.4"/><path d="M8 22l4-11 4 11" stroke="#23263a" stroke-width="2" fill="none"/>',
+plane:'<path d="M2 13l8-1 5-8h3l-3 8 5 .5 2-3h2l-1 4.5 1 4.5h-2l-2-3-5 .5 3 8h-3l-5-8-8-1z" fill="#fff" stroke="#23263a" stroke-width="1.6"/>',
+rocket:'<path d="M12 2c4 3 5 8 4 14H8C7 10 8 5 12 2z" fill="#fff" stroke="#23263a" stroke-width="2"/><circle cx="12" cy="9" r="2" fill="#3aa0ff" stroke="#23263a" stroke-width="1.5"/><path d="M8 16l-3 4h4M16 16l3 4h-4" fill="#ff6b6b" stroke="#23263a" stroke-width="1.5"/><path d="M10 18l2 4 2-4" fill="#ffc93c"/>',
+star:'<path d="M12 2l2.9 6.2 6.6.8-4.9 4.6 1.3 6.6L12 17l-5.9 3.2 1.3-6.6L2.5 9l6.6-.8z" fill="#ffc93c" stroke="#23263a" stroke-width="1.6"/>',
+key:'<circle cx="8" cy="12" r="5" fill="#ffc93c" stroke="#23263a" stroke-width="2"/><path d="M13 12h9M18 12v4M21 12v3" stroke="#23263a" stroke-width="2.4"/>',
+person:'<circle cx="12" cy="7" r="4" fill="#ffd8b0" stroke="#23263a" stroke-width="2"/><path d="M4 21c0-5 4-8 8-8s8 3 8 8z" fill="#3aa0ff" stroke="#23263a" stroke-width="2"/>',
+up:'<path d="M12 3l8 9h-5v9H9v-9H4z" fill="#2fbf71" stroke="#23263a" stroke-width="2" stroke-linejoin="round"/>',
+};
+const svg=k=>`<svg viewBox="0 0 24 24">${IC[k]}</svg>`;
+const MANAGERS=['Lola','Dex','Wanda','Tony','Pixel','Reel','Bella','Max','Skye','Cosmo'];
+const UPGS=(()=>{const u=[];
+  BIZ.forEach((b,i)=>{for(let t=0;t<5;t++)u.push({id:'b'+i+'_'+t,biz:i,mult:3,cost:b.cost*2000*Math.pow(120,t)*(1+i*.4),name:['Bigger signs','Loyalty cards','Fancy menu','Celebrity ad','Franchise deal'][t],desc:b.name+' profits x3'})});
+  [1e8,1e13,1e18,1e23,1e28,1e33].forEach((c,t)=>u.push({id:'all'+t,biz:-1,mult:3,cost:c,name:['Town newspaper','TV channel','Mayor’s blessing','City airport hub','World expo','Galactic fame'][t],desc:'All profits x3'}));
+  [5e9,5e14,5e19,5e24].forEach((c,t)=>u.push({id:'key'+t,keyb:.01,cost:c,name:['Investor brunch','Board meeting','Shareholder gala','Stock split'][t],desc:'Each golden key gives +1% more'}));
+  return u.sort((a,b)=>a.cost-b.cost)})();
+const SUF=['','K','M','B','T','Qa','Qi','Sx','Sp','Oc','No','Dc','Ud','Dd','Td','Qad','Qid','Sxd','Spd','Ocd','Nod','Vg','Uvg','Dvg','Tvg','Qavg'];
+function money(n){if(!isFinite(n))return '$∞';if(n<1000)return '$'+(n<100&&n%1?n.toFixed(2):Math.floor(n).toString());const e=Math.floor(Math.log10(n)/3);if(e<SUF.length){const v=n/Math.pow(10,e*3);return '$'+(v<10?v.toFixed(2):v<100?v.toFixed(1):Math.floor(v))+' '+SUF[e]}return '$'+n.toExponential(2)}
+function num(n){if(n<1e6)return Math.floor(n).toLocaleString('en-US');return money(n).slice(1)}
+function dur(s){if(s<1)return s.toFixed(2)+'s';if(s<60)return s.toFixed(s<10?1:0)+'s';if(s<3600)return Math.floor(s/60)+'m '+String(Math.floor(s%60)).padStart(2,'0')+'s';return Math.floor(s/3600)+'h '+String(Math.floor(s%3600/60)).padStart(2,'0')+'m'}
+
+/* ---------- state ---------- */
+function fresh(){return{cash:0,biz:BIZ.map((b,i)=>({n:i===0?1:0,t:0,run:false,mgr:false})),upg:{},ach:{},keys:0,earned:0,total:0,prestiges:0,boostT:0,boostCd:0,rushT:0,golden:0,taps:0,started:Date.now(),last:Date.now(),buyMode:1,playTime:0}}
+let G=(()=>{try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&Array.isArray(s.biz)&&s.biz.length===BIZ.length)return Object.assign(fresh(),s)}catch(e){}return null})();
+const isNew=!G;if(!G)G=fresh();
+function save(){G.last=Date.now();try{localStorage.setItem(KEY,JSON.stringify(G))}catch(e){}}
+
+/* ---------- economy ---------- */
+const msLevel=n=>MS.filter(m=>n>=m).length;
+const nextMs=n=>MS.find(m=>n<m);
+function speedMul(n){return Math.pow(2,Math.min(6,msLevel(n)))}
+function msProfit(n){return Math.pow(3,Math.max(0,msLevel(n)-6))}
+function keyBonus(){let b=.02;for(const u of UPGS)if(u.keyb&&G.upg[u.id])b+=u.keyb;return b}
+function achMul(){return 1+Object.keys(G.ach).length*.01}
+function globalMul(){let m=(1+G.keys*keyBonus())*achMul();for(const u of UPGS)if(u.biz===-1&&G.upg[u.id])m*=u.mult;if(G.boostT>0)m*=2;if(G.rushT>0)m*=7;return m}
+function bizMul(i){let m=1;for(const u of UPGS)if(u.biz===i&&G.upg[u.id])m*=u.mult;return m}
+function cycleTime(i){return BIZ[i].time/speedMul(G.biz[i].n)}
+function cycleRev(i,gm){const b=G.biz[i];return BIZ[i].rev*b.n*msProfit(b.n)*bizMul(i)*(gm||globalMul())}
+function perSec(onlyMgr){const gm=globalMul();let s=0;G.biz.forEach((b,i)=>{if(b.n&&(b.mgr||!onlyMgr&&b.run))s+=cycleRev(i,gm)/cycleTime(i)});return s}
+function costFor(i,q){const b=BIZ[i],o=G.biz[i].n;return b.cost*Math.pow(b.k,o)*(Math.pow(b.k,q)-1)/(b.k-1)}
+function maxAfford(i){const b=BIZ[i],o=G.biz[i].n,c0=b.cost*Math.pow(b.k,o);if(G.cash<c0)return 0;return Math.floor(Math.log(G.cash*(b.k-1)/c0+1)/Math.log(b.k))}
+function buyQty(i){const m=G.buyMode;if(m==='max')return Math.max(1,maxAfford(i));if(m==='next'){const nm=nextMs(G.biz[i].n);return nm?nm-G.biz[i].n:1}return m}
+function mgrCost(i){return BIZ[i].cost*(i===0?250:1000)}
+function earn(v){G.cash+=v;G.earned+=v;G.total+=v}
+function keysAvailable(){const t=Math.floor(Math.sqrt(G.total/1e10));return Math.max(0,t-G.keys-(G.keysSpent||0))}
+
+/* ---------- achievements ---------- */
+const ACH=(()=>{const a=[];
+  BIZ.forEach((b,i)=>[25,50,100,200,300,400].forEach(n=>a.push({id:'o'+i+'_'+n,name:n+' '+b.name+(n>1?'s':''),desc:'Own '+n,goal:n,get:()=>G.biz[i].n})));
+  [10,25,50,100,200].forEach(n=>a.push({id:'all'+n,name:'Town of '+n+'s',desc:'Own '+n+' of every business',goal:n,get:()=>Math.min(...G.biz.map(b=>b.n))}));
+  [1e3,1e6,1e9,1e12,1e15,1e18,1e21,1e24,1e30].forEach(n=>a.push({id:'e'+n,name:'Earn '+money(n),desc:'All-time earnings',goal:n,get:()=>G.total}));
+  [1,10,50].forEach(n=>a.push({id:'g'+n,name:'Golden touch '+n,desc:'Catch '+n+' golden customers',goal:n,get:()=>G.golden}));
+  [1,3,10].forEach(n=>a.push({id:'p'+n,name:'Fresh start '+n,desc:'Sell the town '+n+' time'+(n>1?'s':''),goal:n,get:()=>G.prestiges}));
+  [1,5,10].forEach(n=>a.push({id:'m'+n,name:n+' manager'+(n>1?'s':''),desc:'Hire '+n+' managers',goal:n,get:()=>G.biz.filter(b=>b.mgr).length}));
+  [100,1000].forEach(n=>a.push({id:'t'+n,name:'Busy hands '+n,desc:'Tap businesses '+n+' times',goal:n,get:()=>G.taps}));
+  return a})();
+function checkAch(){for(const a of ACH)if(!G.ach[a.id]&&a.get()>=a.goal){G.ach[a.id]=1;toast(`Achievement: <b>${a.name}</b> · +1% profits`);fresh_view=true}}
+
+/* ---------- offline ---------- */
+function offline(){
+  const sec=Math.min(24*3600,Math.max(0,(Date.now()-G.last)/1000));
+  G.boostT=Math.max(0,G.boostT-sec);G.rushT=0;G.boostCd=Math.max(0,G.boostCd-sec);
+  const ps=perSec(true);let v=ps*sec;
+  if(v>0&&sec>30){earn(v);showModal(`<h2>Welcome back!</h2><p>Your managers kept the town running for ${dur(sec)}.</p><div class="big">+${money(v)}</div><button class="btn g" data-act="close">Collect</button>`)}
+}
+
+/* ---------- UI ---------- */
+let tab='biz',fresh_view=true,rows=[];
+function tabsHtml(){const mg=G.biz.filter((b,i)=>b.n&&!b.mgr&&G.cash>=mgrCost(i)).length,up=UPGS.filter(u=>!G.upg[u.id]&&G.cash>=u.cost).length,ka=keysAvailable();
+  return [['biz','Businesses',0],['mgr','Managers',mg],['upg','Upgrades',up],['keys','Investors',0],['ach','Achievements',0],['stats','Stats',0]].map(([k,n,c])=>`<button class="tab ${tab===k?'on':''}" data-act="tab" data-id="${k}">${n}${c?`<span class="dot">${c}</span>`:''}</button>`).join('')}
+function render(){
+  $('tabs').innerHTML=tabsHtml();lastTabs=$('tabs').innerHTML;
+  const v=$('view');rows=[];
+  if(tab==='biz'){
+    v.innerHTML=`<div class="bar"><div class="seg">${[[1,'x1'],[10,'x10'],[100,'x100'],['next','Next'],['max','Max']].map(([m,l])=>`<button class="${G.buyMode===m?'on':''}" data-act="mode" data-id="${m}">${l}</button>`).join('')}</div><div class="note">Tap a business icon to make money. Hire a manager to run it for you.</div></div>
+    <div class="list">${BIZ.map((b,i)=>`<div class="biz" id="biz${i}"><button class="ico" data-act="tap" data-i="${i}" style="background:${b.col}">${svg(b.ic)}<b id="bn${i}">0</b></button>
+      <div class="bt"><h3>${b.name}</h3><span id="br${i}"></span></div>
+      <div class="prog"><i id="bp${i}"></i><span id="bt${i}"></span></div>
+      <div class="br"><button class="buy" data-act="buy" data-i="${i}" id="bb${i}"><span id="bq${i}">Buy</span><span id="bc${i}"></span></button><div class="ms" id="bm${i}"></div></div></div>`).join('')}</div>`;
+    rows=BIZ.map((b,i)=>({row:$('biz'+i),n:$('bn'+i),r:$('br'+i),p:$('bp'+i),t:$('bt'+i),b:$('bb'+i),q:$('bq'+i),c:$('bc'+i),m:$('bm'+i),ico:$('biz'+i).querySelector('.ico')}));
+  }else if(tab==='mgr'){
+    v.innerHTML=`<div class="bar"><div class="note">Managers run a business forever, even while you’re away.</div></div><div class="card">${BIZ.map((b,i)=>{const own=G.biz[i].mgr,c=mgrCost(i);
+      return `<div class="row"><span class="sm" style="background:${b.col}">${svg('person')}</span><div class="info"><h3>${MANAGERS[i]}</h3><p>Runs your ${b.name}${G.biz[i].n?'':' (buy one first)'}</p></div>${own?'<span class="done">Hired</span>':`<button class="btn" data-act="mgr" data-i="${i}" data-cost="${c}" ${G.cash<c||!G.biz[i].n?'disabled':''}>${money(c)}</button>`}</div>`}).join('')}</div>`;
+  }else if(tab==='upg'){
+    const open=UPGS.filter(u=>!G.upg[u.id]).slice(0,14),aff=UPGS.filter(u=>!G.upg[u.id]&&G.cash>=u.cost).length;
+    v.innerHTML=`<div class="bar"><div class="note">${Object.keys(G.upg).length} of ${UPGS.length} bought</div><button class="btn g" data-act="upgall" ${aff?'':'disabled'}>Buy all affordable (${aff})</button></div>
+    <div class="card">${open.map(u=>`<div class="row"><span class="sm" style="background:${u.biz>=0?BIZ[u.biz].col:u.keyb?'#ffe9a8':'#c8f2d8'}">${svg(u.biz>=0?BIZ[u.biz].ic:u.keyb?'key':'up')}</span><div class="info"><h3>${u.name}</h3><p>${u.desc}</p></div><button class="btn" data-act="upg" data-id="${u.id}" data-cost="${u.cost}" ${G.cash<u.cost?'disabled':''}>${money(u.cost)}</button></div>`).join('')||'<p class="note">Every upgrade bought. Impressive!</p>'}</div>`;
+  }else if(tab==='keys'){
+    const ka=keysAvailable(),kb=Math.round(keyBonus()*100);
+    v.innerHTML=`<div class="hero"><div class="stat"><b>${num(G.keys)}</b><span>golden keys owned</span></div><div class="stat"><b>+${num(G.keys*kb)}%</b><span>profit from keys (${kb}% each)</span></div><div class="stat"><b style="color:var(--green)">+${num(ka)}</b><span>keys if you sell now</span></div></div>
+    <div class="card"><h3 style="font-size:22px">Sell the town to investors</h3><p class="note" style="margin:6px 0 12px">You start over with one lemonade stand, but keep your golden keys, achievements and stats. Keys make every business earn more, so the next town grows much faster. More keys unlock as your all-time earnings grow: the first arrives at ${money(1e10)}.</p>
+    <button class="btn p" data-act="prestige" ${ka<1?'disabled':''}>${ka<1?'Not enough earnings yet':'Sell town for '+num(ka)+' keys'}</button></div>`;
+  }else if(tab==='ach'){
+    const got=Object.keys(G.ach).length;
+    v.innerHTML=`<div class="bar"><div class="note">${got} of ${ACH.length} unlocked · each one gives +1% to all profits</div></div><div class="achs">${ACH.map(a=>{const g=G.ach[a.id],p=Math.min(1,a.get()/a.goal);return `<div class="ach ${g?'got':''}"><h3>${a.name}</h3><p>${a.desc}</p>${g?'':`<i><u style="width:${p*100}%"></u></i>`}</div>`}).join('')}</div>`;
+  }else{
+    const r=[['All-time earnings',money(G.total)],['This town',money(G.earned)],['Golden keys',num(G.keys)],['Towns sold',G.prestiges],['Golden customers caught',G.golden],['Business taps',num(G.taps)],['Businesses owned',num(G.biz.reduce((a,b)=>a+b.n,0))],['Managers hired',G.biz.filter(b=>b.mgr).length+' / 10'],['Upgrades bought',Object.keys(G.upg).length+' / '+UPGS.length],['Time played',dur(G.playTime)]];
+    v.innerHTML=`<div class="card"><table>${r.map(x=>`<tr><td>${x[0]}</td><td>${x[1]}</td></tr>`).join('')}</table></div>
+    <div class="card" style="margin-top:12px"><div class="row"><div class="info"><h3>Erase save</h3><p>Start completely from scratch</p></div><button class="btn p" data-act="wipe" id="wipeB">Erase</button></div></div>`;
+  }
+  fresh_view=false;
+}
+let lastTabs='';
+function tick(){
+  $('cash').textContent=money(G.cash);$('ps').textContent=money(perSec(false))+' / sec';
+  const bb=$('boostB');if(G.boostT>0){bb.disabled=true;bb.textContent='2x active · '+dur(G.boostT)}else if(G.boostCd>0){bb.disabled=true;bb.textContent='Coffee break in '+dur(G.boostCd)}else{bb.disabled=false;bb.textContent='Coffee break: 2x for 5 min'}
+  $('rushC').hidden=!(G.rushT>0);if(G.rushT>0)$('rushC').textContent='Rush hour 7x · '+Math.ceil(G.rushT)+'s';
+  $('multC').textContent='Profit x'+num(globalMul()/(G.boostT>0?2:1)/(G.rushT>0?7:1)*100)/100;
+  const th=tabsHtml();if(th!==lastTabs){$('tabs').innerHTML=th;lastTabs=th}
+  if(tab==='biz'&&rows.length){const gm=globalMul();
+    BIZ.forEach((b,i)=>{const s=G.biz[i],R=rows[i],ct=cycleTime(i),rev=s.n?cycleRev(i,gm):BIZ[i].rev*gm*bizMul(i);
+      R.row.classList.toggle('locked',!s.n);R.n.textContent=s.n;
+      R.r.textContent=ct<.25&&s.n&&(s.mgr||s.run)?money(rev/ct)+'/s':money(rev);
+      const fast=ct<.25&&(s.mgr||s.run);R.p.style.transform=`scaleX(${fast?1:s.n?Math.min(1,s.t/ct):0})`;
+      R.t.textContent=!s.n?'Buy one to open':s.mgr||s.run?dur(Math.max(0,ct-s.t))+(s.mgr?' · managed':''):'Tap the icon · '+dur(ct);
+      R.ico.classList.toggle('tap',s.n>0&&!s.mgr&&!s.run);
+      const q=buyQty(i),c=costFor(i,q);R.q.textContent='Buy x'+q;R.c.textContent=money(c);R.b.disabled=G.cash<c;
+      const nm=nextMs(s.n),pv=MS[MS.indexOf(nm)-1]||0;R.m.innerHTML=nm?`${s.n}/${nm} ${msLevel(nm)<=6?'speed x2':'profit x3'}<i><u style="width:${(s.n-pv)/(nm-pv)*100}%"></u></i>`:'All milestones';})}
+  else if(tab==='mgr'||tab==='upg'){for(const el of $('view').querySelectorAll('[data-cost]')){const want=G.cash<+el.dataset.cost||(el.dataset.i&&!G.biz[+el.dataset.i].n);if(el.disabled!==want)el.disabled=want}
+    if(tab==='upg'){const aff=UPGS.filter(u=>!G.upg[u.id]&&G.cash>=u.cost).length,b=$('view').querySelector('[data-act=upgall]');if(b){b.disabled=!aff;b.textContent='Buy all affordable ('+aff+')'}}}
+}
+function toast(html){const t=document.createElement('div');t.className='toast';t.innerHTML=html;$('toasts').append(t);setTimeout(()=>t.remove(),2600);while($('toasts').children.length>3)$('toasts').firstChild.remove()}
+function showModal(h){$('mc').innerHTML=h;$('modal').hidden=false}
+
+/* ---------- actions ---------- */
+let wipeArm=0;
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-act]');if(!el||el.disabled)return;const a=el.dataset.act,i=+el.dataset.i,id=el.dataset.id;
+  if(a!=='wipe')wipeArm=0;
+  switch(a){
+  case 'tab':tab=id;render();break;
+  case 'mode':G.buyMode=isNaN(+id)?id:+id;render();break;
+  case 'tap':{const s=G.biz[i];if(s.n&&!s.mgr&&!s.run){s.run=true;s.t=0;G.taps++;pops.push({lot:i,t:0,txt:'',tap:1})}break}
+  case 'buy':{const q=buyQty(i),c=costFor(i,q);if(G.cash>=c){const before=msLevel(G.biz[i].n);G.cash-=c;G.biz[i].n+=q;if(msLevel(G.biz[i].n)>before)toast(`<b>${BIZ[i].name}</b> hit ${MS[msLevel(G.biz[i].n)-1]}! ${msLevel(G.biz[i].n)<=6?'Twice as fast':'Profits x3'}`);if(G.biz[i].n===q)toast(`New business: <b>${BIZ[i].name}</b>`);checkAch()}break}
+  case 'mgr':{const c=mgrCost(i);if(G.cash>=c&&G.biz[i].n&&!G.biz[i].mgr){G.cash-=c;G.biz[i].mgr=true;G.biz[i].run=true;toast(`<b>${MANAGERS[i]}</b> now runs your ${BIZ[i].name}`);checkAch();render()}break}
+  case 'upg':{const u=UPGS.find(u=>u.id===id);if(u&&!G.upg[u.id]&&G.cash>=u.cost){G.cash-=u.cost;G.upg[u.id]=1;toast(`<b>${u.name}</b>: ${u.desc}`);render()}break}
+  case 'upgall':{let n=0;for(const u of UPGS)if(!G.upg[u.id]&&G.cash>=u.cost){G.cash-=u.cost;G.upg[u.id]=1;n++}if(n)toast(`Bought <b>${n}</b> upgrades`);render();break}
+  case 'boost':if(G.boostT<=0&&G.boostCd<=0){G.boostT=300;G.boostCd=1200;toast('<b>Coffee break!</b> 2x profits for 5 minutes')}break;
+  case 'prestige':{const ka=keysAvailable();if(ka<1)break;showModal(`<h2>Sell the town?</h2><p>You’ll start over with ${num(G.keys+ka)} golden keys, for +${num((G.keys+ka)*Math.round(keyBonus()*100))}% profits forever.</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><button class="btn p" data-act="doprestige">Sell it</button><button class="btn" data-act="close">Not yet</button></div>`);break}
+  case 'doprestige':{const ka=keysAvailable(),keep={keys:G.keys+ka,total:G.total,ach:G.ach,prestiges:G.prestiges+1,golden:G.golden,taps:G.taps,started:G.started,playTime:G.playTime,buyMode:G.buyMode,boostCd:G.boostCd,upg:Object.fromEntries(Object.entries(G.upg).filter(([k])=>k.startsWith('key')))};
+    G=Object.assign(fresh(),keep);$('modal').hidden=true;checkAch();save();toast(`Town sold! You now hold <b>${num(G.keys)}</b> golden keys`);tab='biz';render();break}
+  case 'close':$('modal').hidden=true;break;
+  case 'wipe':if(wipeArm){G=fresh();save();wipeArm=0;tab='biz';render()}else{wipeArm=1;el.textContent='Tap again to erase'}break;
+  }
+  if(['buy','tap','mgr','upg','upgall','boost'].includes(a))tick();
+});
+
+/* ---------- town street ---------- */
+const cv=$('c'),cx=cv.getContext('2d');let CW=0,CH=0,DPR=1,LOT=110;
+const people=[],cars=[],pops=[],clouds=[];let golden=null,goldenT=40+Math.random()*60,dayT=60;
+function sizeStreet(){DPR=Math.min(devicePixelRatio||1,2);const w=$('street').clientWidth;LOT=Math.max(86,Math.min(150,w/10.4));CW=Math.max(w,LOT*10.4);CH=cv.clientHeight||220;cv.style.width=CW+'px';cv.width=CW*DPR|0;cv.height=CH*DPR|0}
+for(let i=0;i<5;i++)clouds.push({x:Math.random()*1600,y:10+Math.random()*50,s:.6+Math.random()*.8,v:6+Math.random()*10});
+const lotX=i=>LOT*.2+i*LOT;
+function rr(x,y,w,h,r,f,s){cx.beginPath();cx.roundRect(x,y,w,h,r);cx.fillStyle=f;cx.fill();if(s!==0){cx.lineWidth=2.5;cx.strokeStyle='#23263a';cx.stroke()}}
+function windows(x,y,w,h,cols,rows,night,seed){const gw=w/cols,gh=h/rows;for(let c=0;c<cols;c++)for(let r=0;r<rows;r++){const on=night&&((c*7+r*13+seed)%5)<3;rr(x+c*gw+gw*.2,y+r*gh+gh*.2,gw*.6,gh*.6,3,on?'#ffe38a':'#cfe8ff',0)}}
+function drawBiz(i,x,base,lv,night,t){
+  const W=LOT*.86,s=G.biz[i],grow=1+Math.min(6,lv)*.13,b=BIZ[i];
+  cx.fillStyle='#0002';cx.beginPath();cx.ellipse(x+W/2,base+2,W*.5,6,0,0,Math.PI*2);cx.fill();
+  switch(i){
+  case 0:{const h=40*grow;rr(x+W*.15,base-h*.55,W*.7,h*.55,4,'#fff3c4');for(let k=0;k<5;k++){cx.fillStyle=k%2?'#fff':'#ffd43b';cx.fillRect(x+W*.1+k*W*.16,base-h,W*.16,h*.22)}cx.lineWidth=2.5;cx.strokeStyle='#23263a';cx.strokeRect(x+W*.1,base-h,W*.8,h*.22);cx.beginPath();cx.moveTo(x+W*.15,base-h*.78);cx.lineTo(x+W*.15,base-h*.55);cx.moveTo(x+W*.85,base-h*.78);cx.lineTo(x+W*.85,base-h*.55);cx.stroke();rr(x+W*.42,base-h*.72,W*.16,h*.18,3,'#ffe066');break}
+  case 1:{const h=46*grow;rr(x+W*.12,base-h*.6,W*.76,h*.5,10,'#ff9ec7');cx.fillStyle='#23263a';cx.beginPath();cx.arc(x+W*.3,base-6,7,0,7);cx.arc(x+W*.7,base-6,7,0,7);cx.fill();cx.beginPath();cx.arc(x+W/2,base-h*.85,h*.22,0,7);cx.fillStyle='#e8b071';cx.fill();cx.stroke();cx.beginPath();cx.arc(x+W/2,base-h*.85,h*.2,Math.PI,0);cx.fillStyle='#ff6fa5';cx.fill();cx.beginPath();cx.arc(x+W/2,base-h*.85,h*.08,0,7);cx.fillStyle='#bfe3ff';cx.fill();cx.stroke();break}
+  case 2:{const h=58*grow;rr(x,base-h,W,h,6,'#7cc8ff');rr(x+W*.15,base-h*.55,W*.7,h*.55,4,'#23263a',0);for(let k=0;k<4;k++){cx.beginPath();cx.arc(x+W*(.2+k*.2)+Math.sin(t*2+k)*3,base-h-8-((t*20+k*10)%22),4+k%2*2,0,7);cx.fillStyle='#ffffffcc';cx.fill();cx.lineWidth=1.5;cx.stroke()}break}
+  case 3:{const h=66*grow;rr(x,base-h,W,h,4,'#e07a5f');for(let k=0;k<6;k++){cx.fillStyle=k%2?'#fff':'#e63946';cx.fillRect(x+k*W/6,base-h*.62,W/6,h*.14)}windows(x+W*.08,base-h*.95,W*.84,h*.3,3,1,night,3);rr(x+W*.35,base-h*.4,W*.3,h*.4,3,'#7b3f2a');break}
+  case 4:{const h=74*grow;rr(x,base-h,W,h,6,'#8a6cff');rr(x+W*.1,base-h*.9,W*.8,h*.2,6,night||Math.sin(t*4)>0?'#ff6fa5':'#ffd43b');rr(x+W*.3,base-h*.45,W*.4,h*.45,4,'#2b2250');windows(x+W*.08,base-h*.62,W*.84,h*.14,4,1,true,1);break}
+  case 5:{const h=84*grow;rr(x,base-h,W,h,4,'#c94f4f');rr(x+W*.06,base-h*.72,W*.88,h*.2,4,'#ffd43b');for(let k=0;k<8;k++){cx.beginPath();cx.arc(x+W*.1+k*W*.115,base-h*.74,2.5,0,7);cx.fillStyle=(Math.floor(t*6)+k)%2?'#fff':'#ff6b6b';cx.fill()}rr(x+W*.3,base-h*.4,W*.4,h*.4,3,'#3a1f2a');windows(x+W*.1,base-h*.97,W*.8,h*.2,4,1,night,5);break}
+  case 6:{const h=110*grow;rr(x+W*.06,base-h,W*.88,h,4,'#5bbf8a');windows(x+W*.12,base-h*.94,W*.76,h*.78,4,Math.max(3,Math.round(h/24)),night,7);rr(x+W*.35,base-h*.14,W*.3,h*.14,2,'#2a5d45');rr(x+W*.15,base-h-14,W*.7,14,3,'#ffd43b');break}
+  case 7:{const R=34*grow,cxp=x+W/2,cyp=base-R-12;cx.lineWidth=2.5;cx.strokeStyle='#23263a';cx.beginPath();cx.moveTo(cxp-R*.6,base);cx.lineTo(cxp,cyp);cx.lineTo(cxp+R*.6,base);cx.stroke();cx.beginPath();cx.arc(cxp,cyp,R,0,7);cx.stroke();
+    for(let k=0;k<8;k++){const a=t*.5+k*Math.PI/4,px=cxp+Math.cos(a)*R,py=cyp+Math.sin(a)*R;cx.beginPath();cx.moveTo(cxp,cyp);cx.lineTo(px,py);cx.lineWidth=1.2;cx.stroke();rr(px-6,py-2,12,10,3,['#ff6fa5','#ffd43b','#3aa0ff','#2fbf71'][k%4])}rr(x+2,base-18,W*.3,18,3,'#ffb347');break}
+  case 8:{const h=96*grow;rr(x+W*.55,base-h,W*.22,h,3,'#a8b5d6');rr(x+W*.47,base-h-16,W*.38,18,6,night?'#ffe38a':'#cfe8ff');rr(x,base-h*.35,W*.5,h*.35,4,'#dfe6f5');const px=x+((t*30)%(W*2))-W*.5,py=base-h*.6-((t*30)%(W*2))*.15;cx.save();cx.translate(px,py);cx.scale(.9,.9);cx.fillStyle='#fff';cx.beginPath();cx.ellipse(0,0,18,5,0,0,7);cx.fill();cx.lineWidth=2;cx.stroke();cx.beginPath();cx.moveTo(-2,0);cx.lineTo(-8,10);cx.lineTo(2,0);cx.fill();cx.stroke();cx.restore();break}
+  case 9:{const h=110*grow,cyc=s.mgr||s.run?(s.t/cycleTime(9)):0,lift=cyc>.9?(cyc-.9)*10*CH:0;rr(x+W*.1,base-14,W*.8,14,3,'#8a93b8');cx.save();cx.translate(0,-lift);
+    rr(x+W*.38,base-h,W*.24,h*.8,10,'#fff');cx.beginPath();cx.moveTo(x+W*.38,base-h+8);cx.lineTo(x+W*.5,base-h-20);cx.lineTo(x+W*.62,base-h+8);cx.fillStyle='#ff6b6b';cx.fill();cx.stroke();cx.beginPath();cx.arc(x+W/2,base-h*.7,6,0,7);cx.fillStyle='#3aa0ff';cx.fill();cx.stroke();
+    if(lift){cx.beginPath();cx.moveTo(x+W*.42,base-h*.2);cx.lineTo(x+W/2,base-h*.2+30+Math.random()*10);cx.lineTo(x+W*.58,base-h*.2);cx.fillStyle='#ffc93c';cx.fill()}cx.restore();break}
+  }
+  // name plate & manager
+  if(s.mgr){cx.beginPath();cx.arc(x+W-6,base-10,7,0,7);cx.fillStyle='#ffd8b0';cx.fill();cx.lineWidth=2;cx.strokeStyle='#23263a';cx.stroke()}
+}
+function drawLot(i,x,base){const W=LOT*.86;cx.setLineDash([6,5]);cx.strokeStyle='#23263a55';cx.lineWidth=2;cx.strokeRect(x+4,base-26,W-8,22);cx.setLineDash([]);
+  cx.fillStyle='#8a5a3a';cx.fillRect(x+W/2-2,base-46,4,40);rr(x+W*.18,base-62,W*.64,22,4,'#fff');cx.fillStyle='#23263a';cx.font=`900 ${Math.max(9,LOT*.085)}px Nunito`;cx.textAlign="center";cx.fillText("FOR SALE",x+W/2,base-47)}
+function sky(t){const p=(Math.sin(t*Math.PI*2/240)+1)/2;const top=mix('#1b2350','#7cc6ff',p),bot=mix('#40407a','#d9f0ff',p);return{top,bot,night:p<.35,p}}
+function mix(a,b,t){const pa=parseInt(a.slice(1),16),pb=parseInt(b.slice(1),16);const r=(pa>>16)+((pb>>16)-(pa>>16))*t,g=(pa>>8&255)+((pb>>8&255)-(pa>>8&255))*t,bl=(pa&255)+((pb&255)-(pa&255))*t;return `rgb(${r|0},${g|0},${bl|0})`}
+function drawStreet(dt){
+  dayT+=dt;const t=performance.now()/1000,sk=sky(dayT);
+  cx.setTransform(DPR,0,0,DPR,0,0);
+  const g=cx.createLinearGradient(0,0,0,CH);g.addColorStop(0,sk.top);g.addColorStop(1,sk.bot);cx.fillStyle=g;cx.fillRect(0,0,CW,CH);
+  if(sk.night){for(let k=0;k<40;k++){cx.fillStyle='#fff';cx.globalAlpha=(1-sk.p/.35)*.8;cx.fillRect((k*97)%CW,(k*53)%(CH*.5),2,2)}cx.globalAlpha=1}
+  const sunY=CH*.75-Math.sin(dayT*Math.PI*2/240)*CH*.6;cx.beginPath();cx.arc(CW*.85,sunY,20,0,7);cx.fillStyle=sunY<CH*.75?'#ffe066':'#fff3c4';cx.fill();
+  for(const c of clouds){c.x+=c.v*dt;if(c.x>CW+80)c.x=-80;cx.fillStyle='#ffffffcc';cx.beginPath();cx.arc(c.x,c.y,14*c.s,0,7);cx.arc(c.x+16*c.s,c.y-6*c.s,16*c.s,0,7);cx.arc(c.x+32*c.s,c.y,13*c.s,0,7);cx.fill()}
+  const base=CH-46;
+  cx.fillStyle=sk.night?'#3d6b3a':'#7ccf5b';cx.fillRect(0,base,CW,8);cx.fillStyle='#c9cfe0';cx.fillRect(0,base+8,CW,8);cx.fillStyle='#4a4f6a';cx.fillRect(0,base+16,CW,CH-base-16);
+  cx.fillStyle='#ffd43b';for(let x=((-t*0)%40);x<CW;x+=40)cx.fillRect(x,base+29,20,3);
+  BIZ.forEach((b,i)=>{const x=lotX(i);if(G.biz[i].n)drawBiz(i,x,base,msLevel(G.biz[i].n),sk.night,t);else drawLot(i,x,base)});
+  // progress pills
+  BIZ.forEach((b,i)=>{const s=G.biz[i];if(!s.n||!(s.mgr||s.run))return;const ct=cycleTime(i);if(ct<.3)return;const x=lotX(i)+LOT*.43;rr(x-22,base+3,44,5,3,'#ffffff88',0);rr(x-22,base+3,44*Math.min(1,s.t/ct),5,3,'#2fbf71',0)});
+  // people & cars
+  if(Math.random()<dt*.8&&people.length<14)people.push({x:Math.random()<.5?-10:CW+10,dir:0,c:pick(['#3aa0ff','#ff6fa5','#2fbf71','#8a6cff','#ff8a5c']),s:20+Math.random()*25});
+  for(const p of people){if(!p.dir)p.dir=p.x<0?1:-1;p.x+=p.dir*p.s*dt;const y=base+12,bob=Math.abs(Math.sin(p.x*.2))*2;cx.beginPath();cx.arc(p.x,y-12-bob,4,0,7);cx.fillStyle='#ffd8b0';cx.fill();rr(p.x-4,y-8-bob,8,9,3,p.c,0)}
+  for(let k=people.length-1;k>=0;k--)if(people[k].x<-20||people[k].x>CW+20)people.splice(k,1);
+  if(Math.random()<dt*.35&&cars.length<5)cars.push({x:Math.random()<.5?-50:CW+50,dir:0,c:pick(['#ff6b6b','#3aa0ff','#ffd43b','#2fbf71','#fff']),s:70+Math.random()*60});
+  for(const c of cars){if(!c.dir)c.dir=c.x<0?1:-1;c.x+=c.dir*c.s*dt;const y=c.dir>0?base+40:base+24;rr(c.x-18,y-12,36,11,4,c.c);rr(c.x-10,y-18,20,8,3,c.c);cx.fillStyle='#23263a';cx.beginPath();cx.arc(c.x-10,y-1,4,0,7);cx.arc(c.x+10,y-1,4,0,7);cx.fill();if(sk.night){cx.fillStyle='#ffe38a';cx.fillRect(c.dir>0?c.x+17:c.x-21,y-10,4,4)}}
+  for(let k=cars.length-1;k>=0;k--)if(cars[k].x<-70||cars[k].x>CW+70)cars.splice(k,1);
+  // golden customer
+  goldenT-=dt;if(!golden&&goldenT<=0){golden={x:-20,y:base+6,dir:1,v:55};goldenT=90+Math.random()*120}
+  if(golden){golden.x+=golden.dir*golden.v*dt;const gx=golden.x,gy=golden.y,b=Math.abs(Math.sin(gx*.2))*2;cx.beginPath();cx.arc(gx,gy-18-b,16+Math.sin(t*6)*2,0,7);cx.fillStyle='#ffc93c55';cx.fill();cx.beginPath();cx.arc(gx,gy-20-b,6,0,7);cx.fillStyle='#ffc93c';cx.fill();cx.lineWidth=2;cx.strokeStyle='#23263a';cx.stroke();rr(gx-6,gy-14-b,12,14,4,'#ffc93c');cx.fillStyle='#fff';cx.font='900 11px Nunito';cx.textAlign='center';cx.fillText('Tap me!',gx,gy-34-b);if(gx>CW+30)golden=null}
+  // pops
+  cx.textAlign='center';for(const p of pops){p.t+=dt;const x=lotX(p.lot)+LOT*.43,y=base-60-p.t*40;cx.globalAlpha=Math.max(0,1-p.t);if(p.txt){cx.font='900 14px Nunito';cx.lineWidth=4;cx.strokeStyle='#23263a';cx.strokeText(p.txt,x,y);cx.fillStyle='#9fffc5';cx.fillText(p.txt,x,y)}else{cx.beginPath();cx.arc(x,base-40,10+p.t*30,0,7);cx.strokeStyle='#ffffff';cx.lineWidth=3;cx.stroke()}cx.globalAlpha=1}
+  for(let k=pops.length-1;k>=0;k--)if(pops[k].t>1)pops.splice(k,1);
+}
+const pick=a=>a[Math.random()*a.length|0];
+cv.addEventListener('click',e=>{if(!golden)return;const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;if(Math.abs(x-golden.x)<34&&Math.abs(y-(golden.y-18))<40){
+  G.golden++;const ps=Math.max(perSec(false),1);
+  if(Math.random()<.5){const v=Math.max(ps*600,G.cash*.1+10);earn(v);toast(`Golden customer tipped <b>${money(v)}</b>!`)}else{G.rushT=30;toast('<b>Rush hour!</b> 7x profits for 30 seconds')}
+  pops.push({lot:Math.max(0,Math.min(9,Math.floor((golden.x-LOT*.2)/LOT))),t:0,txt:'Golden!'});golden=null;checkAch();tick()}});
+
+/* ---------- loop ---------- */
+function step(dt){
+  const gm=globalMul();
+  G.biz.forEach((s,i)=>{if(!s.n||!(s.mgr||s.run))return;const ct=cycleTime(i);s.t+=dt;if(s.t>=ct){const c=Math.floor(s.t/ct),v=c*cycleRev(i,gm);earn(v);s.t-=c*ct;if(ct>.5&&pops.length<20)pops.push({lot:i,t:0,txt:'+'+money(v)});if(!s.mgr){s.run=false;s.t=0}}});
+  if(G.boostT>0)G.boostT=Math.max(0,G.boostT-dt);else if(G.boostCd>0)G.boostCd=Math.max(0,G.boostCd-dt);
+  if(G.rushT>0)G.rushT=Math.max(0,G.rushT-dt);
+  G.playTime+=dt;
+}
+let last=performance.now(),uiT=0,saveT=0,achT=0;
+function frame(now){const dt=Math.min(1,(now-last)/1000);last=now;
+  try{step(dt);drawStreet(Math.min(dt,.1));uiT-=dt;if(uiT<=0){uiT=.1;tick()}achT-=dt;if(achT<=0){achT=1;checkAch()}saveT-=dt;if(saveT<=0){saveT=5;save()}if(fresh_view)render()}catch(err){console.error(err)}
+  requestAnimationFrame(frame)}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)save();else{const away=(Date.now()-G.last)/1000;if(away>30)offline();last=performance.now()}});
+addEventListener('pagehide',save);
+addEventListener('resize',()=>sizeStreet());
+window.__tt={get G(){return G},step};
+sizeStreet();
+if(!isNew)offline();else showModal(`<h2>Welcome, tycoon!</h2><p>You own one lemonade stand. Tap it to sell lemonade, buy more stands, then open new businesses down the street. Hire managers and the town earns money even while you’re away.</p><button class="btn g" data-act="close">Let’s go</button>`);
+render();tick();requestAnimationFrame(frame);
+}
+</script>
